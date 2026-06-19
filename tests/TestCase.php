@@ -34,6 +34,7 @@ abstract class TestCase extends Orchestra
         $this->beforeApplicationDestroyed(function (): void {
             Schema::dropIfExists('actors');
             Schema::dropIfExists('posts');
+            Schema::dropIfExists('comments');
         });
 
         Schema::create('actors', function (Blueprint $table): void {
@@ -41,6 +42,10 @@ abstract class TestCase extends Orchestra
         });
 
         Schema::create('posts', function (Blueprint $table): void {
+            $table->increments('id');
+        });
+
+        Schema::create('comments', function (Blueprint $table): void {
             $table->increments('id');
         });
     }
