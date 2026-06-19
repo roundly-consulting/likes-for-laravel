@@ -15,9 +15,11 @@ use RoundlyConsulting\Likes\PendingLike;
  * @method static bool like(Model $likeable)
  * @method static bool unlike(Model $likeable)
  * @method static bool toggle(Model $likeable)
+ * @method static bool react(Model $likeable)
  * @method static bool has(Model $likeable)
  * @method static void likeMany(iterable<Model> $likeables)
  * @method static void unlikeMany(iterable<Model> $likeables)
+ * @method static \RoundlyConsulting\Likes\Testing\LikesFake fake()
  *
  * @see LikeManager
  */

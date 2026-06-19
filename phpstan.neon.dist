@@ -7,6 +7,12 @@ parameters:
         - tests/Models/ActorTestModel.php
         - tests/Models/PostTestModel.php
         - tests/Models/CommentTestModel.php
+    excludePaths:
+        # The Testing helpers bind Pest's expect()->extend() closures ($this is the
+        # expectation, resolved at runtime) and a consumer-facing opt-in trait. Neither
+        # is statically analysable in isolation; both are exercised by the test suite.
+        - src/Testing/LikeExpectations.php
+        - src/Testing/InteractsWithLikes.php
     checkModelProperties: true
     configDirectories:
         - config
