@@ -10,12 +10,21 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('likes', function (Blueprint $table): void {
+        $table = config('likes.table', 'likes');
+
+        /** @var string $table */
+        Schema::create($table, function (Blueprint $table): void {
             $table->id();
             $table->morphs('actor');
             $table->morphs('likeable');
+            $table->string('type')->default('like');
             $table->timestamps();
             $table->softDeletes();
+
+            $table->index(
+                ['actor_type', 'actor_id', 'likeable_type', 'likeable_id', 'type'],
+                'likes_actor_likeable_type_index',
+            );
         });
     }
 };

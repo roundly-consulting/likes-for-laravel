@@ -6,4 +6,7 @@ parameters:
         - database
         - tests/Models/ActorTestModel.php
         - tests/Models/PostTestModel.php
+        - tests/Models/CommentTestModel.php
     checkModelProperties: true
+    configDirectories:
+        - config
