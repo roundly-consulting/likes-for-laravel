@@ -5,9 +5,24 @@ declare(strict_types=1);
 namespace RoundlyConsulting\Likes;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Facade;
+use RoundlyConsulting\Likes\Testing\LikesFake;
 
-final class LikeManager
+class LikeManager
 {
+    /**
+     * Swap the manager for a recording fake and return it for assertions.
+     */
+    public static function fake(): LikesFake
+    {
+        $fake = new LikesFake;
+
+        app()->instance(self::class, $fake);
+        Facade::clearResolvedInstance(self::class);
+
+        return $fake;
+    }
+
     /**
      * Start a fluent chain for a specific actor.
      */
@@ -46,6 +61,15 @@ final class LikeManager
     public function toggle(Model $likeable): bool
     {
         return (new PendingLike)->toggle($likeable);
+    }
+
+    /**
+     * React to the model as the resolved actor, switching any existing
+     * reaction in place (one active reaction per actor + likeable).
+     */
+    public function react(Model $likeable): bool
+    {
+        return (new PendingLike)->react($likeable);
     }
 
     /**

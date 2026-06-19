@@ -7,6 +7,7 @@ namespace RoundlyConsulting\Likes;
 use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Likes\Actions\LikeAction;
 use RoundlyConsulting\Likes\Actions\LikeManyAction;
+use RoundlyConsulting\Likes\Actions\SwitchReactionAction;
 use RoundlyConsulting\Likes\Actions\ToggleLikeAction;
 use RoundlyConsulting\Likes\Actions\UnlikeAction;
 use RoundlyConsulting\Likes\Actions\UnlikeManyAction;
@@ -17,11 +18,11 @@ use RoundlyConsulting\Likes\Models\Like;
 /**
  * Immutable, fluent builder produced by LikeManager::actor()/as().
  */
-final readonly class PendingLike
+readonly class PendingLike
 {
     public function __construct(
-        private ?Model $actor = null,
-        private ?string $type = null,
+        protected ?Model $actor = null,
+        protected ?string $type = null,
     ) {}
 
     public function actor(Model $actor): self
@@ -47,6 +48,15 @@ final readonly class PendingLike
     public function toggle(Model $likeable): bool
     {
         return app(ToggleLikeAction::class)->execute($this->data($likeable));
+    }
+
+    /**
+     * React to the likeable, switching any existing reaction in place so the
+     * actor keeps exactly one active reaction per likeable.
+     */
+    public function react(Model $likeable): bool
+    {
+        return app(SwitchReactionAction::class)->execute($this->data($likeable));
     }
 
     public function has(Model $likeable): bool
@@ -79,12 +89,12 @@ final readonly class PendingLike
         app(UnlikeManyAction::class)->execute($this->resolveActor(), $likeables, $this->type);
     }
 
-    private function data(Model $likeable): LikeData
+    protected function data(Model $likeable): LikeData
     {
         return new LikeData($this->resolveActor(), $likeable, $this->type);
     }
 
-    private function resolveActor(): Model
+    protected function resolveActor(): Model
     {
         if ($this->actor instanceof Model) {
             return $this->actor;
