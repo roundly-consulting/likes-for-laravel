@@ -17,6 +17,7 @@ use RoundlyConsulting\Likes\Database\Factories\LikeFactory;
  * @property string $actor_type
  * @property int $likeable_id
  * @property string $likeable_type
+ * @property string $type
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  * @property CarbonInterface|null $deleted_at
