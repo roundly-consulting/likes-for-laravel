@@ -2,8 +2,10 @@
 
 Lightweight Laravel package to handle likes and reactions on entities. Any Eloquent model
 can give likes, any model can receive them, and a single polymorphic `likes` table records
-who liked what — with optional typed reactions (love, wow, …), popularity scopes, fast
-counts, a fluent facade, and events your application can listen to.
+who liked what — with optional typed reactions (love, wow, …), popularity and trending
+scopes, single-query feed hydration, reaction breakdowns, a reverse "what X liked" relation,
+a fluent facade, a testing toolkit, opt-in broadcasting, JSON resources, and events your
+application can listen to.
 
 ## Requirements
 
@@ -55,17 +57,45 @@ return [
     'default_reaction' => env('LIKES_DEFAULT_REACTION', 'like'),
     'actor_resolver' => null,
     'facade_alias' => env('LIKES_FACADE_ALIAS', 'Likes'),
+
+    'weights' => [
+        // 'like' => 1,
+        // 'love' => 4,
+    ],
+    'default_weight' => 1,
+
+    'trending' => [
+        'window' => '7 days',
+        'recent_multiplier' => 3,
+        'driver_expressions' => [
+            // 'pgsql' => 'SUM(...) / POW(EXTRACT(EPOCH FROM ...), 1.8)',
+        ],
+    ],
+
+    'broadcast' => [
+        'enabled' => env('LIKES_BROADCAST', false),
+        'channel_prefix' => 'likes',
+        'channel_type' => 'private',
+    ],
 ];
 ```
 
-| Key                | Type                            | Default          | Env                       | Purpose                                                                                       |
-|--------------------|---------------------------------|------------------|---------------------------|-----------------------------------------------------------------------------------------------|
-| `model`            | `class-string`                  | `Like::class`    | —                         | Eloquent model used to persist each like. Swap in your own model (extending the package one).  |
-| `table`            | `string`                        | `likes`          | `LIKES_TABLE`             | Database table that stores likes. Read by both the migration and the model.                    |
-| `reactions`        | `list<string>`                  | `['like']`       | —                         | Allowlist of accepted reaction types. Any type outside the list is rejected.                   |
-| `default_reaction` | `string`                        | `like`           | `LIKES_DEFAULT_REACTION`  | Reaction used when none is given. Must be present in `reactions`.                              |
-| `actor_resolver`   | `callable\|class-string\|null`  | `null`           | —                         | How the facade resolves the actor when none is supplied. `null` uses `auth()->user()`.        |
-| `facade_alias`     | `string\|null`                  | `Likes`          | `LIKES_FACADE_ALIAS`      | Global class alias for the `Likes` facade. Set `null` to skip aliasing.                        |
+| Key                              | Type                            | Default          | Env                       | Purpose                                                                                       |
+|----------------------------------|---------------------------------|------------------|---------------------------|-----------------------------------------------------------------------------------------------|
+| `model`                          | `class-string`                  | `Like::class`    | —                         | Eloquent model used to persist each like. Swap in your own model (extending the package one).  |
+| `table`                          | `string`                        | `likes`          | `LIKES_TABLE`             | Database table that stores likes. Read by both the migration and the model.                    |
+| `reactions`                      | `list<string>`                  | `['like']`       | —                         | Allowlist of accepted reaction types. Any type outside the list is rejected.                   |
+| `default_reaction`               | `string`                        | `like`           | `LIKES_DEFAULT_REACTION`  | Reaction used when none is given. Must be present in `reactions`.                              |
+| `actor_resolver`                 | `callable\|class-string\|null`  | `null`           | —                         | How the facade resolves the actor when none is supplied. `null` uses `auth()->user()`.        |
+| `facade_alias`                   | `string\|null`                  | `Likes`          | `LIKES_FACADE_ALIAS`      | Global class alias for the `Likes` facade. Set `null` to skip aliasing.                        |
+| `weights`                        | `array<string, int\|float>`     | `[]`             | —                         | Per-reaction weights for `orderByLikeScore()`. Empty means the score equals the raw count.     |
+| `default_weight`                 | `int\|float`                    | `1`              | —                         | Weight applied to any reaction not listed in `weights`.                                        |
+| `trending.window`                | `string`                        | `7 days`         | —                         | `strtotime`-able recency window used by `orderByTrending()`.                                   |
+| `trending.recent_multiplier`     | `int\|float`                    | `3`              | —                         | How much likes inside the window outweigh all-time activity.                                   |
+| `trending.driver_expressions`    | `array<string, string>`         | `[]`             | —                         | Optional per-driver raw SQL trending overrides, applied verbatim for that connection.         |
+| `broadcast.enabled`              | `bool`                          | `false`          | `LIKES_BROADCAST`         | Opt-in broadcasting of `Liked`/`Unliked`/`ReactionChanged`. Off by default.                    |
+| `broadcast.channel_prefix`       | `string`                        | `likes`          | —                         | Channel name prefix, e.g. `likes.posts.42`.                                                    |
+| `broadcast.channel_type`         | `string`                        | `private`        | —                         | Channel type: `private`, `public`, or `presence`.                                             |
 
 ## Usage
 
@@ -125,6 +155,117 @@ Post::whereNotLikedBy($user)->get();         // posts the user has not liked
 Post::withLikesCount()->get();               // hydrate a `likes_count` attribute
 ```
 
+### Feed hydration (no N+1)
+
+Render per-row viewer state for an entire feed page in a **single query** instead of one
+`exists()` per row. `withLikedState()` adds two attributes to each model:
+
+```php
+$posts = Post::query()
+    ->withLikedState()      // adds is_liked + liked_reaction for the current viewer
+    ->withLikesCount()      // composes — still one query
+    ->latest()
+    ->paginate();
+```
+
+```blade
+@foreach ($posts as $post)
+    {{ $post->is_liked ? '♥' : '♡' }} {{ $post->likes_count }}
+@endforeach
+```
+
+- `is_liked` is a truthy `0`/`1` flag; `liked_reaction` is the viewer's reaction type or `null`.
+- The actor defaults to the resolved auth actor; pass one explicitly with
+  `withLikedState($actor)` and narrow to a reaction with `withLikedState($actor, 'love')`.
+- For guests (no resolvable actor) it renders `is_liked = 0` / `liked_reaction = null` without
+  throwing, so guest feeds still work.
+
+### Ranking: weighted score and trending
+
+```php
+Post::orderByLikeScore()->get();    // rank by a weighted sum of reactions (desc)
+Post::orderByTrending()->get();     // rank by recency-weighted activity (desc)
+```
+
+`orderByLikeScore()` uses `config('likes.weights')`; with the default (all weights `1`) the
+score equals the raw like count. Give some reactions more pull:
+
+```php
+'weights' => ['like' => 1, 'love' => 4],
+```
+
+`orderByTrending()` boosts likes inside `config('likes.trending.window')` by
+`recent_multiplier` over all-time activity. Both scopes accept a direction and an optional
+reaction type, compose with other scopes, and use portable SQL (SQLite/MySQL/Postgres). Hosts
+that want an exact per-driver decay curve can supply raw SQL via
+`config('likes.trending.driver_expressions')` (applied verbatim; the portable hybrid is used
+otherwise).
+
+```php
+Post::orderByLikeScore('asc')->get();
+Post::orderByTrending('desc', 'love')->get();   // trending loves
+```
+
+### Reaction breakdown
+
+One grouped query produces a `ReactionSummary` for reaction bars and counters:
+
+```php
+$summary = $post->reactionSummary();        // optionally pass a viewer
+$summary->total;            // int — sum of all reactions
+$summary->countFor('love'); // int
+$summary->has('love');      // bool
+$summary->top;              // ?string — most-used type (config order breaks ties), null if none
+$summary->viewerReaction;   // ?string — the viewer's active reaction, null without one
+$summary->toArray();        // ['total' => .., 'counts' => [...], 'top' => .., 'viewer' => ..]
+```
+
+### Switch a reaction in place
+
+`react()` keeps **one active reaction per actor + likeable**: reacting with a new type updates
+the existing row instead of adding a second one.
+
+```php
+$user->react($post, 'love');                  // trait
+$user->switchReaction($post, 'wow');          // readable alias
+Likes::actor($user)->as('love')->react($post); // facade
+```
+
+- No prior reaction → behaves like `like()` (fires `Liked`).
+- Same type → no-op, returns `true`.
+- Different type → switches the row in place and fires **only** `ReactionChanged(from, to)`
+  (never `Liked`/`Unliked`/`LikeToggled`), so analytics and notifications see a clean
+  transition.
+
+Keep using `like('love')` + `like('wow')` when you want **multiple** simultaneous reactions
+per actor; use `react()` for the common **single**-reaction case.
+
+### What an actor liked (reverse relation)
+
+```php
+$user->likedItems(Post::class)->get();              // posts the user actively likes
+$user->likedItems(Post::class, 'love')->get();      // filtered by reaction
+$user->likedItems(Post::class)->with('author')->paginate();  // real relation — eager-load & paginate
+$user->likesOf(Post::class);                         // the underlying MorphToMany relation
+```
+
+Soft-deleted (unliked) items drop out automatically and reappear on a re-like.
+
+### API surface
+
+```php
+use RoundlyConsulting\Likes\Http\Resources\LikeResource;
+
+return LikeResource::make($post);          // resolves the viewer from the request user
+// or build the array yourself:
+$post->toLikeArray($request->user());
+// => [
+//   'count' => 12,
+//   'viewer_state' => ['liked' => true, 'reaction' => 'love'],
+//   'breakdown' => ['like' => 8, 'love' => 4],
+// ]
+```
+
 ### Typed reactions (opt-in)
 
 By default a single implicit `like` reaction is configured, so behaviour is unchanged. Add
@@ -162,6 +303,7 @@ Likes::actor($user)->like($comment);    // as any actor
 Likes::actor($team)->toggle($post);
 Likes::as('love')->like($post);         // typed reaction
 Likes::actor($user)->as('wow')->toggle($post);
+Likes::actor($user)->as('love')->react($post);  // switch reaction in place
 ```
 
 If no actor is supplied and none can be resolved, a
@@ -215,11 +357,29 @@ class NotifyAuthor
 }
 ```
 
-| Event         | When                | Properties                                       |
-|---------------|---------------------|--------------------------------------------------|
-| `Liked`       | a like is created   | `actor`, `likeable`, `type`, `like`              |
-| `Unliked`     | a like is removed   | `actor`, `likeable`, `type`, `like`              |
-| `LikeToggled` | either of the above | `actor`, `entity`, `hasBeenLiked` (back-compat)  |
+| Event             | When                          | Properties                                       |
+|-------------------|-------------------------------|--------------------------------------------------|
+| `Liked`           | a like is created             | `actor`, `likeable`, `type`, `like`              |
+| `Unliked`         | a like is removed             | `actor`, `likeable`, `type`, `like`              |
+| `ReactionChanged` | a reaction is switched (`react()`) | `actor`, `likeable`, `from`, `to`, `like`   |
+| `LikeToggled`     | a like is created or removed  | `actor`, `entity`, `hasBeenLiked` (back-compat)  |
+
+### Broadcasting (opt-in, default off)
+
+`Liked`, `Unliked`, and `ReactionChanged` can broadcast over Laravel Echo. Broadcasting is
+**off by default**, so existing installs are unaffected. Enable it in `config/likes.php`:
+
+```php
+'broadcast' => [
+    'enabled' => env('LIKES_BROADCAST', true),
+    'channel_prefix' => 'likes',
+    'channel_type' => 'private',   // private | public | presence
+],
+```
+
+When enabled, each event broadcasts on `{channel_prefix}.{morph}.{id}` (e.g.
+`likes.posts.42`) with stable names `like.created`, `like.removed`, and `reaction.changed`.
+The events keep dispatching as plain events for your listeners regardless of this setting.
 
 #### Optional: a persisted counter column
 
@@ -246,6 +406,50 @@ class SyncLikesCounter
 ```
 
 Register it in your own `EventServiceProvider`; the package does not auto-register it.
+
+### Testing toolkit
+
+Host applications get first-class assertions. `Likes::fake()` swaps the manager for a
+recording fake that **still performs** the operations, so you can assert on what happened:
+
+```php
+use RoundlyConsulting\Likes\Facades\Likes;
+
+$fake = Likes::fake();
+
+Likes::actor($user)->like($post);
+
+$fake->assertLiked($post);
+$fake->assertLikedBy($user, $post, 'love');
+$fake->assertNotLiked($other);
+$fake->assertNothingLiked();
+$fake->assertLikedCount(1);
+$fake->assertLikedTimes($post, 1);
+```
+
+The `InteractsWithLikes` trait adds acting-actor helpers:
+
+```php
+uses(RoundlyConsulting\Likes\Testing\InteractsWithLikes::class);
+
+$this->actingAsLiker($user);
+$this->likeAs($post, 'love');
+$this->unlikeAs($post);
+$this->toggleAs($post);
+```
+
+Register the Pest matchers once in your `tests/Pest.php`:
+
+```php
+RoundlyConsulting\Likes\Testing\LikeExpectations::register();
+
+expect($post)->toBeLikedBy($user);
+expect($post)->toBeLikedBy($user, 'love');
+expect($post)->toHaveReaction('love');
+```
+
+The matchers are guarded by `function_exists('expect')`, so Pest is never pulled into your
+runtime.
 
 ## Testing
 
