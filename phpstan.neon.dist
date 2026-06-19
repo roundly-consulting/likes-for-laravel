@@ -1,0 +1,9 @@
+parameters:
+    level: 7
+    paths:
+        - src
+        - config
+        - database
+        - tests/Models/ActorTestModel.php
+        - tests/Models/PostTestModel.php
+    checkModelProperties: true
