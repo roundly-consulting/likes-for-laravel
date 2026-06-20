@@ -1,3 +1,11 @@
+<!-- roundly-hero:start -->
+<p align="center">
+  <a href="https://roundly-consulting.com/open-source/docs/likes-for-laravel?utm_source=github&utm_medium=readme&utm_campaign=open-source&utm_content=likes-for-laravel">
+    <img src="art/hero.png" alt="Likes for Laravel — Roundly open source" width="100%">
+  </a>
+</p>
+<!-- roundly-hero:end -->
+
 # Likes for Laravel
 
 Lightweight Laravel package to handle likes and reactions on entities. Any Eloquent model
