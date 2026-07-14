@@ -20,6 +20,13 @@ application can listen to.
 - PHP `^8.4`
 - Laravel `^12.0` or `^13.0`
 
+### Integrates with
+
+- [`package-toolkit-for-laravel`](https://github.com/roundly-consulting/package-toolkit-for-laravel) —
+  the package is bootstrapped with the toolkit's `PackageServiceProvider`, so its config,
+  migrations, facade alias and the `@liked` directive are wired through the shared builder, and
+  `php artisan about` reports the configured reactions.
+
 ## Installation
 
 Install the package via Composer:
