@@ -6,6 +6,7 @@ namespace RoundlyConsulting\Likes\Actions;
 
 use RoundlyConsulting\Likes\DataTransferObjects\LikeData;
 use RoundlyConsulting\Likes\Models\Like;
+use RoundlyConsulting\Likes\Support\LikeModel;
 
 final class ToggleLikeAction
 {
@@ -20,8 +21,7 @@ final class ToggleLikeAction
      */
     public function execute(LikeData $data): bool
     {
-        /** @var class-string<Like> $model */
-        $model = config('likes.model', Like::class);
+        $model = LikeModel::class();
 
         $liked = $model::query()
             ->whereMorphedTo('actor', $data->actor)

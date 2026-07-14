@@ -15,6 +15,7 @@ use RoundlyConsulting\Likes\Actions\UnlikeAction;
 use RoundlyConsulting\Likes\Actions\UnlikeManyAction;
 use RoundlyConsulting\Likes\DataTransferObjects\LikeData;
 use RoundlyConsulting\Likes\Models\Like;
+use RoundlyConsulting\Likes\Support\LikeModel;
 use RoundlyConsulting\Likes\Support\ReactionType;
 
 /**
@@ -27,8 +28,7 @@ trait GivesLikes
      */
     public function likes(): MorphMany
     {
-        /** @var class-string<Like> $model */
-        $model = config('likes.model', Like::class);
+        $model = LikeModel::class();
 
         return $this->morphMany($model, 'actor');
     }

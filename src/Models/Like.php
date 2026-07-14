@@ -22,7 +22,7 @@ use RoundlyConsulting\Likes\Database\Factories\LikeFactory;
  * @property CarbonInterface|null $updated_at
  * @property CarbonInterface|null $deleted_at
  */
-final class Like extends Model
+class Like extends Model
 {
     /** @use HasFactory<LikeFactory> */
     use HasFactory;

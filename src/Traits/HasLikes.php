@@ -12,6 +12,7 @@ use Illuminate\Database\Query\Expression;
 use RoundlyConsulting\Likes\DataTransferObjects\ReactionSummary;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Support\ActorResolver;
+use RoundlyConsulting\Likes\Support\LikeModel;
 use RoundlyConsulting\Likes\Support\ReactionType;
 use RoundlyConsulting\Likes\Support\TrendingScore;
 
@@ -25,8 +26,7 @@ trait HasLikes
      */
     public function likes(): MorphMany
     {
-        /** @var class-string<Like> $model */
-        $model = config('likes.model', Like::class);
+        $model = LikeModel::class();
 
         return $this->morphMany($model, 'likeable');
     }

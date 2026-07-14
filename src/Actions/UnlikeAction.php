@@ -8,6 +8,7 @@ use RoundlyConsulting\Likes\DataTransferObjects\LikeData;
 use RoundlyConsulting\Likes\Events\LikeToggled;
 use RoundlyConsulting\Likes\Events\Unliked;
 use RoundlyConsulting\Likes\Models\Like;
+use RoundlyConsulting\Likes\Support\LikeModel;
 
 final class UnlikeAction
 {
@@ -19,8 +20,7 @@ final class UnlikeAction
      */
     public function execute(LikeData $data): bool
     {
-        /** @var class-string<Like> $model */
-        $model = config('likes.model', Like::class);
+        $model = LikeModel::class();
 
         /** @var Like|null $like */
         $like = $model::query()
