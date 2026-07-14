@@ -24,8 +24,8 @@ application can listen to.
 
 - [`package-toolkit-for-laravel`](https://github.com/roundly-consulting/package-toolkit-for-laravel) —
   the package is bootstrapped with the toolkit's `PackageServiceProvider`, so its config,
-  migrations, facade alias and the `@liked` directive are wired through the shared builder, and
-  `php artisan about` reports the configured reactions.
+  publishable migration, facade alias and the `@liked` directive are wired through the shared
+  builder, and `php artisan about` reports the configured reactions.
 
 ## Installation
 
@@ -35,18 +35,15 @@ Install the package via Composer:
 composer require roundly-consulting/likes-for-laravel
 ```
 
-The migration is loaded automatically, so you can run it straight away:
-
-```bash
-php artisan migrate
-```
-
-If you prefer to publish the migration into your application first:
+Publish the migration into your application, then run it:
 
 ```bash
 php artisan vendor:publish --tag="likes-migrations"
 php artisan migrate
 ```
+
+The migration is not loaded automatically — publishing it first keeps your schema in your own
+`database/migrations`, where you can review or adjust it before it runs.
 
 Optionally publish the config file:
 
