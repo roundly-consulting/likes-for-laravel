@@ -8,12 +8,14 @@ use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Likes\Facades\Likes;
 use RoundlyConsulting\Likes\Support\ReactionType;
 use RoundlyConsulting\PackageToolkit\Concerns\RegistersBladeDirectives;
+use RoundlyConsulting\PackageToolkit\Concerns\RegistersBlueprintMacros;
 use RoundlyConsulting\PackageToolkit\Package;
 use RoundlyConsulting\PackageToolkit\PackageServiceProvider;
 
 final class LikesServiceProvider extends PackageServiceProvider
 {
     use RegistersBladeDirectives;
+    use RegistersBlueprintMacros;
 
     public function configurePackage(Package $package): void
     {
@@ -39,6 +41,10 @@ final class LikesServiceProvider extends PackageServiceProvider
     public function boot(): void
     {
         parent::boot();
+
+        // The migration's key-type-aware morph columns are macros, so they must
+        // exist before a host runs `php artisan migrate`.
+        $this->registerBlueprintMacros();
 
         $this->registerBladeIf('liked', function (Model $likeable, ?Model $actor = null, ?string $type = null): bool {
             $type ??= ReactionType::default();

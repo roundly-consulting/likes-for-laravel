@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use RoundlyConsulting\PackageToolkit\Enums\KeyType;
 
 return new class extends Migration
 {
@@ -12,11 +13,15 @@ return new class extends Migration
     {
         $table = config('likes.table', 'likes');
 
+        // Silently falls back to bigint for an unrecognized value, so a typo in
+        // the host's config never leaves the package unable to migrate.
+        $keyType = KeyType::fromConfig('likes.key_type');
+
         /** @var string $table */
-        Schema::create($table, function (Blueprint $table): void {
+        Schema::create($table, function (Blueprint $table) use ($keyType): void {
             $table->id();
-            $table->morphs('actor');
-            $table->morphs('likeable');
+            $table->morphKey('actor', $keyType, nullable: false);
+            $table->morphKey('likeable', $keyType, nullable: false);
             $table->string('type')->default('like');
             $table->timestamps();
             $table->softDeletes();
