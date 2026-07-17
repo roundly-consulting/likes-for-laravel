@@ -32,6 +32,29 @@ class Like extends Model
     protected $guarded = [];
 
     /**
+     * Resolve the table from `likes.table`, which the config file has always promised
+     * "both the migration and the model read".
+     *
+     * Only the migration did. Eloquent derived `likes` from the class name, so a host that
+     * set `LIKES_TABLE=reactions` got its schema built as `reactions` while every relation
+     * and every write went looking for `likes` — the package was simply broken on any
+     * value but the default. The scopes in HasLikes/GivesLikes already read the key, so
+     * the model was the last reader missing.
+     *
+     * An explicit `$table` on a subclass still wins, exactly as Eloquent intends.
+     */
+    public function getTable(): string
+    {
+        if (isset($this->table)) {
+            return $this->table;
+        }
+
+        $table = config('likes.table', 'likes');
+
+        return is_string($table) && $table !== '' ? $table : 'likes';
+    }
+
+    /**
      * @return MorphTo<Model, $this>
      */
     public function actor(): MorphTo
