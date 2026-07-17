@@ -13,7 +13,13 @@ use Carbon\CarbonImmutable;
  * timestamp comparison) so it runs on SQLite, MySQL and Postgres alike.
  *
  * All config-derived values are passed as bound parameters, never inlined, so
- * the generated SQL templates stay literal and injection-safe.
+ * the generated SQL templates stay literal and injection-safe. That is what makes
+ * the explicit CASTs necessary: a bound parameter carries no type, and Postgres
+ * will not guess one inside an aggregate. Every numeric binding that reaches an
+ * arithmetic or aggregate context is therefore cast at the call site — see
+ * {@see self::weightedCase()}. Until this row that was missing, and the portability
+ * claim above was simply untrue on Postgres for any host that configured
+ * `likes.weights` or a fractional `trending.recent_multiplier`.
  */
 final class TrendingScore
 {
@@ -50,9 +56,12 @@ final class TrendingScore
         $multiplier = self::recentMultiplier();
 
         if ($weights === []) {
-            // recent count + all-time count, boosted.
+            // recent count + all-time count, boosted. The multiplier is cast for the same
+            // reason the weights are: `SUM(...) * ?` leaves Postgres to type the parameter
+            // from its neighbour, so it parses the value as bigint and a documented
+            // fractional multiplier dies with "invalid input syntax for type bigint".
             $expression = '('
-                .'SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) * ?'
+                .'SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) * CAST(? AS DECIMAL(20,10))'
                 .' + COUNT(*))';
 
             return ['expression' => $expression, 'bindings' => [self::since(), $multiplier]];
@@ -62,7 +71,7 @@ final class TrendingScore
 
         // recent_weighted * multiplier + all_time_weighted
         $expression = '('
-            .'SUM(CASE WHEN created_at >= ? THEN ('.$case.') ELSE 0 END) * ?'
+            .'SUM(CASE WHEN created_at >= ? THEN ('.$case.') ELSE 0 END) * CAST(? AS DECIMAL(20,10))'
             .' + SUM('.$case.'))';
 
         $bindings = [self::since(), ...$caseBindings, $multiplier, ...$caseBindings];
@@ -100,9 +109,24 @@ final class TrendingScore
     }
 
     /**
-     * Build a `CASE type WHEN ? THEN ? … ELSE ? END` template plus the bindings
-     * (type, weight) pairs followed by the default weight. The template is a
+     * Build a `CASE type WHEN ? THEN CAST(? AS DECIMAL(20,10)) … END` template plus the
+     * bindings (type, weight) pairs followed by the default weight. The template is a
      * literal string; all values are bound.
+     *
+     * The CASTs are not decoration — without them this whole feature throws on Postgres.
+     * A bare `?` has no type, so Postgres infers `text` for the THEN/ELSE branches, the
+     * CASE resolves to text, and the enclosing aggregate becomes `sum(text)`:
+     *
+     *     SQLSTATE[42883]: Undefined function: 7 ERROR: function sum(text) does not exist
+     *
+     * SQLite is dynamically typed and never noticed, which is how `likes.weights` — a
+     * documented, tested feature — shipped broken on every real Postgres install.
+     *
+     * `DECIMAL(20,10)` rather than `NUMERIC`: DECIMAL(M,D) is the one spelling in the CAST
+     * grammar of all three engines this class claims to support (Postgres treats it as
+     * NUMERIC, MySQL lists DECIMAL explicitly and does *not* accept NUMERIC, SQLite gives
+     * it NUMERIC affinity). Bare `DECIMAL` is unusable: MySQL defaults it to (10,0) and
+     * would silently truncate fractional weights to integers.
      *
      * @param  array<string, int|float>  $weights
      * @return array{0: literal-string, 1: list<string|int|float>}
@@ -113,12 +137,12 @@ final class TrendingScore
         $bindings = [];
 
         foreach ($weights as $type => $weight) {
-            $case .= ' WHEN ? THEN ?';
+            $case .= ' WHEN ? THEN CAST(? AS DECIMAL(20,10))';
             $bindings[] = $type;
             $bindings[] = $weight;
         }
 
-        $case .= ' ELSE ? END';
+        $case .= ' ELSE CAST(? AS DECIMAL(20,10)) END';
         $bindings[] = self::defaultWeight();
 
         return [$case, $bindings];

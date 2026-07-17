@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use RoundlyConsulting\Likes\Support\TrendingScore;
+use RoundlyConsulting\Testing\Database\DriverMatrix;
 
 it('builds a count expression with no weights', function (): void {
     config()->set('likes.weights', []);
@@ -19,7 +20,13 @@ it('builds a weighted case expression with bound values', function (): void {
 
     $score = TrendingScore::weightedSum();
 
-    expect($score['expression'])->toBe('SUM(CASE type WHEN ? THEN ? WHEN ? THEN ? ELSE ? END)')
+    // The CASTs are load-bearing, not cosmetic: without them Postgres types the bound
+    // weights as text and the enclosing SUM becomes `sum(text)`, which does not exist.
+    // The bindings are unchanged — every value is still bound, never inlined.
+    expect($score['expression'])->toBe(
+        'SUM(CASE type WHEN ? THEN CAST(? AS DECIMAL(20,10)) WHEN ? THEN CAST(? AS DECIMAL(20,10))'
+        .' ELSE CAST(? AS DECIMAL(20,10)) END)',
+    )
         ->and($score['bindings'])->toBe(['like', 1, 'love', 4, 2]);
 });
 
@@ -33,9 +40,16 @@ it('builds a portable trending expression bound to a window', function (): void 
         ->and($trending['bindings'][1] ?? null)->toBe(5);
 });
 
+/**
+ * Keyed by the driver the suite is actually running on, not a hard-coded 'sqlite'. The
+ * literal made this case exercise the override branch on the sqlite leg and silently take
+ * the *fallback* branch on any other — green either way, proving nothing on the leg that
+ * matters. This is the toolkit row's lesson: a test-side sqlite assumption is invisible
+ * until a real engine runs the suite.
+ */
 it('honours a per-driver override expression', function (): void {
     config()->set('likes.trending.driver_expressions', [
-        'sqlite' => 'SUM(custom)',
+        DriverMatrix::driver() => 'SUM(custom)',
     ]);
 
     $trending = TrendingScore::trending();
@@ -57,7 +71,7 @@ it('builds a weighted portable trending expression', function (): void {
 
     $trending = TrendingScore::portableTrending();
 
-    expect($trending['expression'])->toContain('CASE type WHEN ? THEN ?')
+    expect($trending['expression'])->toContain('CASE type WHEN ? THEN CAST(? AS DECIMAL(20,10))')
         ->and($trending['bindings'])->toContain('love');
 });
 
@@ -85,13 +99,14 @@ it('falls back when config values have the wrong type', function (): void {
 });
 
 it('ignores a non-string driver override', function (): void {
-    config()->set('likes.trending.driver_expressions', ['sqlite' => 123]);
+    // Keyed by the live driver so the non-string branch is really reached on every leg.
+    config()->set('likes.trending.driver_expressions', [DriverMatrix::driver() => 123]);
 
     expect(TrendingScore::trending()['expression'])->toContain('created_at >= ?');
 });
 
 it('falls back when the driver is not a string', function (): void {
-    config()->set('likes.trending.driver_expressions', ['sqlite' => 'SUM(x)']);
+    config()->set('likes.trending.driver_expressions', [DriverMatrix::driver() => 'SUM(x)']);
     config()->set('database.connections.testing.driver', ['weird']);
 
     expect(TrendingScore::trending()['expression'])->toContain('created_at >= ?');
