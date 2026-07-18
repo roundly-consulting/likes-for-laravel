@@ -25,8 +25,12 @@ ArchPresets::strictTypes('RoundlyConsulting\Likes');
  *    (`LikesFake extends LikeManager`, `RecordingPendingLike extends PendingLike`) to
  *    implement `Likes::fake()`. Sealing either would break the package's testing seam.
  */
-ArchPresets::finalByDefault('RoundlyConsulting\Likes')
-    ->ignoring([Like::class, LikesException::class, LikeManager::class, PendingLike::class]);
+ArchPresets::finalByDefault('RoundlyConsulting\Likes', [
+    Like::class,
+    LikesException::class,
+    LikeManager::class,
+    PendingLike::class,
+]);
 
 /**
  * The counter-weight, and the fleet's 7×-shipped fatal: `final` on a config-swappable
