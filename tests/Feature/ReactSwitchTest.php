@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Event;
 use RoundlyConsulting\Likes\Events\Liked;
-use RoundlyConsulting\Likes\Events\LikeToggled;
 use RoundlyConsulting\Likes\Events\ReactionChanged;
 use RoundlyConsulting\Likes\Events\Unliked;
 use RoundlyConsulting\Likes\Exceptions\InvalidReactionTypeException;
@@ -31,7 +30,6 @@ it('react creates a like when none exists', function (): void {
         ->and(Like::query()->whereNull('deleted_at')->count())->toBe(1);
 
     Event::assertDispatched(Liked::class);
-    Event::assertDispatched(LikeToggled::class);
     Event::assertNotDispatched(ReactionChanged::class);
 });
 
@@ -70,7 +68,6 @@ it('switch fires ReactionChanged with from and to and nothing else', function ()
     });
     Event::assertNotDispatched(Liked::class);
     Event::assertNotDispatched(Unliked::class);
-    Event::assertNotDispatched(LikeToggled::class);
 });
 
 it('react rejects an invalid type', function (): void {

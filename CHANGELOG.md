@@ -22,7 +22,7 @@ Initial public release.
 - `reactionSummary()` breakdowns and a reverse `likedItems()` relation for "what X liked".
 - A `Likes` facade that resolves the authenticated actor, with a configurable actor resolver.
 - A `@liked` Blade directive and a `LikeResource` JSON resource.
-- `Liked`, `Unliked`, `ReactionChanged` and `LikeToggled` events, with opt-in broadcasting over
+- `Liked`, `Unliked` and `ReactionChanged` events, with opt-in broadcasting over
   Laravel Echo.
 - `Likes::fake()` with assertions such as `assertLiked()`, `assertLikedBy()` and
   `assertNothingLiked()`.

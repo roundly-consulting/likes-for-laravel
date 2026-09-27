@@ -6,7 +6,6 @@ namespace RoundlyConsulting\Likes\Actions;
 
 use RoundlyConsulting\Likes\DataTransferObjects\LikeData;
 use RoundlyConsulting\Likes\Events\Liked;
-use RoundlyConsulting\Likes\Events\LikeToggled;
 use RoundlyConsulting\Likes\Events\ReactionChanged;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Support\LikeModel;
@@ -79,6 +78,5 @@ final class SwitchReactionAction
     private function dispatchLiked(LikeData $data, Like $like): void
     {
         Liked::dispatch($data->actor, $data->likeable, $data->type, $like);
-        LikeToggled::dispatch($data->actor, $data->likeable, true);
     }
 }

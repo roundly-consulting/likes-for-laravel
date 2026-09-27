@@ -256,7 +256,7 @@ Likes::actor($user)->as('love')->react($post); // facade
 - No prior reaction → behaves like `like()` (fires `Liked`).
 - Same type → no-op, returns `true`.
 - Different type → switches the row in place and fires **only** `ReactionChanged(from, to)`
-  (never `Liked`/`Unliked`/`LikeToggled`), so analytics and notifications see a clean
+  (never `Liked`/`Unliked`), so analytics and notifications see a clean
   transition.
 
 Keep using `like('love')` + `like('wow')` when you want **multiple** simultaneous reactions
@@ -363,12 +363,11 @@ actor; `@liked($model, $actor, 'love')` honours a reaction type.
 ### Events
 
 Idempotent no-ops (liking what's already liked, unliking what isn't) dispatch **no** events.
-On a real change the package fires the precise event plus the back-compatible `LikeToggled`:
+On a real change the package fires exactly one event:
 
 ```php
 use RoundlyConsulting\Likes\Events\Liked;
 use RoundlyConsulting\Likes\Events\Unliked;
-use RoundlyConsulting\Likes\Events\LikeToggled;
 
 class NotifyAuthor
 {
@@ -384,12 +383,11 @@ class NotifyAuthor
 | `Liked`           | a like is created             | `actor`, `likeable`, `type`, `like`              |
 | `Unliked`         | a like is removed             | `actor`, `likeable`, `type`, `like`              |
 | `ReactionChanged` | a reaction is switched (`react()`) | `actor`, `likeable`, `from`, `to`, `like`   |
-| `LikeToggled`     | a like is created or removed  | `actor`, `entity`, `hasBeenLiked` (back-compat)  |
 
 ### Broadcasting (opt-in, default off)
 
 `Liked`, `Unliked`, and `ReactionChanged` can broadcast over Laravel Echo. Broadcasting is
-**off by default**, so existing installs are unaffected. Enable it in `config/likes.php`:
+**off by default**. Enable it in `config/likes.php`:
 
 ```php
 'broadcast' => [

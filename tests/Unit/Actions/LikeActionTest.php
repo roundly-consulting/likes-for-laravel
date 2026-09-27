@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\Event;
 use RoundlyConsulting\Likes\Actions\LikeAction;
 use RoundlyConsulting\Likes\DataTransferObjects\LikeData;
 use RoundlyConsulting\Likes\Events\Liked;
-use RoundlyConsulting\Likes\Events\LikeToggled;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Tests\Models\ActorTestModel;
 use RoundlyConsulting\Likes\Tests\Models\PostTestModel;
@@ -41,13 +40,12 @@ it('restores a soft-deleted like instead of creating a new row', function (): vo
         ->and(Like::withTrashed()->count())->toBe(1);
 });
 
-it('dispatches Liked and LikeToggled on a new like', function (): void {
+it('dispatches Liked on a new like', function (): void {
     Event::fake();
 
     $this->action->execute(new LikeData($this->actor, $this->post));
 
     Event::assertDispatched(Liked::class);
-    Event::assertDispatched(fn (LikeToggled $e): bool => $e->hasBeenLiked === true);
 });
 
 it('does not dispatch events on a no-op like', function (): void {
@@ -57,5 +55,4 @@ it('does not dispatch events on a no-op like', function (): void {
     $this->action->execute(new LikeData($this->actor, $this->post));
 
     Event::assertNotDispatched(Liked::class);
-    Event::assertNotDispatched(LikeToggled::class);
 });

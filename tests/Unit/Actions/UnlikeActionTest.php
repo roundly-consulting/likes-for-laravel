@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\Event;
 use RoundlyConsulting\Likes\Actions\LikeAction;
 use RoundlyConsulting\Likes\Actions\UnlikeAction;
 use RoundlyConsulting\Likes\DataTransferObjects\LikeData;
-use RoundlyConsulting\Likes\Events\LikeToggled;
 use RoundlyConsulting\Likes\Events\Unliked;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Tests\Models\ActorTestModel;
@@ -36,14 +35,13 @@ it('is idempotent when not liked', function (): void {
         ->and(Like::withTrashed()->count())->toBe(0);
 });
 
-it('dispatches Unliked and LikeToggled on removal', function (): void {
+it('dispatches Unliked on removal', function (): void {
     $this->like->execute(new LikeData($this->actor, $this->post));
 
     Event::fake();
     $this->unlike->execute(new LikeData($this->actor, $this->post));
 
     Event::assertDispatched(Unliked::class);
-    Event::assertDispatched(fn (LikeToggled $e): bool => $e->hasBeenLiked === false);
 });
 
 it('does not dispatch events on a no-op unlike', function (): void {
@@ -52,5 +50,4 @@ it('does not dispatch events on a no-op unlike', function (): void {
     $this->unlike->execute(new LikeData($this->actor, $this->post));
 
     Event::assertNotDispatched(Unliked::class);
-    Event::assertNotDispatched(LikeToggled::class);
 });

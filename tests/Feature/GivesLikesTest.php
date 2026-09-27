@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Event;
-use RoundlyConsulting\Likes\Events\LikeToggled;
+use RoundlyConsulting\Likes\Events\Liked;
+use RoundlyConsulting\Likes\Events\Unliked;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Tests\Models\ActorTestModel;
 use RoundlyConsulting\Likes\Tests\Models\PostTestModel;
@@ -26,10 +27,9 @@ it('toggles like for given model', function () {
 
     expect($liked)->toBeTrue();
 
-    Event::assertDispatched(function (LikeToggled $event) use ($actor, $post) {
+    Event::assertDispatched(function (Liked $event) use ($actor, $post) {
         return $event->actor === $actor &&
-               $event->entity === $post &&
-               $event->hasBeenLiked === true;
+               $event->likeable === $post;
     });
 
     $this->assertDatabaseHas('likes', [
@@ -43,10 +43,9 @@ it('toggles like for given model', function () {
 
     expect($liked)->toBeFalse();
 
-    Event::assertDispatched(function (LikeToggled $event) use ($actor, $post) {
+    Event::assertDispatched(function (Unliked $event) use ($actor, $post) {
         return $event->actor === $actor &&
-               $event->entity === $post &&
-               $event->hasBeenLiked === false;
+               $event->likeable === $post;
     });
 
     $this->assertSoftDeleted('likes', [

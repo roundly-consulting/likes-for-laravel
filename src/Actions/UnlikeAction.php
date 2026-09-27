@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace RoundlyConsulting\Likes\Actions;
 
 use RoundlyConsulting\Likes\DataTransferObjects\LikeData;
-use RoundlyConsulting\Likes\Events\LikeToggled;
 use RoundlyConsulting\Likes\Events\Unliked;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Support\LikeModel;
@@ -36,7 +35,6 @@ final class UnlikeAction
         $like->delete();
 
         Unliked::dispatch($data->actor, $data->likeable, $data->type, $like);
-        LikeToggled::dispatch($data->actor, $data->likeable, false);
 
         return false;
     }
