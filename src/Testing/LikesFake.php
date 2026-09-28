@@ -14,8 +14,9 @@ use RoundlyConsulting\Likes\PendingLike;
  * `Likes::fake()`. Every write — flat, through `actor()`/`as()`, bulk, or from the
  * `GivesLikes` / `InteractsWithLikes` traits — runs through a {@see RecordingPendingLike}, so it
  * still hits the database (and `has()` / `for()` read that real state) while the `assert*()`
- * helpers verify what happened. A toggle is recorded as the like or unlike it performed; bulk
- * calls record one entry per model.
+ * helpers verify what happened. A write is recorded only once it completes, so one the package
+ * refuses (an unknown reaction type, no resolvable actor) is never recorded. A toggle is
+ * recorded as the like or unlike it performed; bulk calls record one entry per model.
  */
 final class LikesFake extends LikeManager
 {

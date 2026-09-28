@@ -8,9 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Likes\PendingLike;
 
 /**
- * A {@see PendingLike} that reports every performed write back to the {@see LikesFake} and then
- * delegates to the real action, so host-app tests can assert on what happened while the
- * operations still hit the database.
+ * A {@see PendingLike} that delegates every write to the real action and then reports it back
+ * to the {@see LikesFake}, so host-app tests can assert on what happened while the operations
+ * still hit the database. A write is recorded only once it has completed: one the package
+ * refuses (an unknown reaction type, no resolvable actor) throws before it is recorded, so an
+ * assertion can never pass over a write that never happened.
  *
  * @internal
  */
@@ -36,16 +38,20 @@ final readonly class RecordingPendingLike extends PendingLike
 
     public function like(Model $likeable): bool
     {
+        $result = parent::like($likeable);
+
         $this->fake->record(RecordedLike::LIKE, $this->resolveActor(), $likeable, $this->type);
 
-        return parent::like($likeable);
+        return $result;
     }
 
     public function unlike(Model $likeable): bool
     {
+        $result = parent::unlike($likeable);
+
         $this->fake->record(RecordedLike::UNLIKE, $this->resolveActor(), $likeable, $this->type);
 
-        return parent::unlike($likeable);
+        return $result;
     }
 
     public function toggle(Model $likeable): bool
@@ -59,9 +65,11 @@ final readonly class RecordingPendingLike extends PendingLike
 
     public function react(Model $likeable): bool
     {
+        $result = parent::react($likeable);
+
         $this->fake->record(RecordedLike::REACT, $this->resolveActor(), $likeable, $this->type);
 
-        return parent::react($likeable);
+        return $result;
     }
 
     /**
@@ -69,9 +77,11 @@ final readonly class RecordingPendingLike extends PendingLike
      */
     public function likeMany(iterable $likeables): void
     {
-        $likeables = $this->each(RecordedLike::LIKE, $likeables);
+        $likeables = $this->materialise($likeables);
 
         parent::likeMany($likeables);
+
+        $this->each(RecordedLike::LIKE, $likeables);
     }
 
     /**
@@ -79,28 +89,42 @@ final readonly class RecordingPendingLike extends PendingLike
      */
     public function unlikeMany(iterable $likeables): void
     {
-        $likeables = $this->each(RecordedLike::UNLIKE, $likeables);
+        $likeables = $this->materialise($likeables);
 
         parent::unlikeMany($likeables);
+
+        $this->each(RecordedLike::UNLIKE, $likeables);
     }
 
     /**
-     * Record one entry per model. Materialises the iterable so a generator is not consumed
-     * before the real action runs.
+     * Materialise the iterable so a generator is not consumed by the real action before the
+     * completed writes are recorded.
      *
      * @param  iterable<Model>  $likeables
      * @return list<Model>
      */
-    private function each(string $operation, iterable $likeables): array
+    private function materialise(iterable $likeables): array
     {
-        $actor = $this->resolveActor();
         $list = [];
 
         foreach ($likeables as $likeable) {
-            $this->fake->record($operation, $actor, $likeable, $this->type);
             $list[] = $likeable;
         }
 
         return $list;
+    }
+
+    /**
+     * Record one entry per model of a completed bulk write.
+     *
+     * @param  list<Model>  $likeables
+     */
+    private function each(string $operation, array $likeables): void
+    {
+        $actor = $this->resolveActor();
+
+        foreach ($likeables as $likeable) {
+            $this->fake->record($operation, $actor, $likeable, $this->type);
+        }
     }
 }

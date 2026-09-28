@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use PHPUnit\Framework\AssertionFailedError;
+use RoundlyConsulting\Likes\Exceptions\InvalidReactionTypeException;
+use RoundlyConsulting\Likes\Exceptions\NoAuthenticatedActorException;
 use RoundlyConsulting\Likes\Facades\Likes;
 use RoundlyConsulting\Likes\LikeManager;
 use RoundlyConsulting\Likes\Models\Like;
@@ -137,4 +139,42 @@ it('does not match assertLikedBy for a different actor', function (): void {
 
     expect(fn () => $fake->assertLikedBy($other, $this->post))
         ->toThrow(AssertionFailedError::class);
+});
+
+/**
+ * The fake recorded a write before performing it, so a refused write still satisfied the
+ * assertions: `like($post, 'nope')` threw, yet `assertLikedBy()` passed over zero rows.
+ */
+it('does not record a write the package refused', function (Closure $write): void {
+    $fake = Likes::fake();
+
+    expect(fn () => $write($this->actor, $this->post))->toThrow(InvalidReactionTypeException::class);
+
+    $fake->assertNothingLiked();
+    $fake->assertNothingUnliked();
+    $fake->assertNothingReacted();
+})->with([
+    'like' => [fn ($actor, $post) => $actor->like($post, 'nope')],
+    'unlike' => [fn ($actor, $post) => $actor->unlike($post, 'nope')],
+    'react' => [fn ($actor, $post) => $actor->react($post, 'nope')],
+    'toggle' => [fn ($actor, $post) => $actor->toggleLike($post, 'nope')],
+    'likeMany' => [fn ($actor, $post) => $actor->likeMany([$post], 'nope')],
+    'unlikeMany' => [fn ($actor, $post) => $actor->unlikeMany([$post], 'nope')],
+]);
+
+it('does not record a write without a resolvable actor', function (): void {
+    $fake = Likes::fake();
+
+    expect(fn () => Likes::like($this->post))->toThrow(NoAuthenticatedActorException::class);
+
+    $fake->assertNothingLiked();
+});
+
+it('records a completed bulk write once per model', function (): void {
+    $fake = Likes::fake();
+
+    $this->actor->likeMany([$this->post, $this->other]);
+
+    $fake->assertLikedCount(2);
+    $fake->assertLikedBy($this->actor, $this->other);
 });
