@@ -23,13 +23,18 @@ final readonly class LikeableLikes
     ) {}
 
     /**
-     * Number of active likes, optionally of one reaction type. Uses an eager-loaded
-     * `likes_count` (e.g. `withLikesCount()`) when present and no type is given.
+     * Number of active likes, optionally of one reaction type. Uses an eager-loaded count
+     * when present — `likes_count` from `withLikesCount()`, or `likes_{type}_count` from
+     * `withLikesCount($type)` for a typed count — and counts live otherwise.
      */
     public function count(?string $type = null): int
     {
-        if ($type === null && $this->likeable->getAttribute('likes_count') !== null) {
-            return (int) $this->likeable->getAttribute('likes_count');
+        // Read the raw attribute bag: getAttribute() on an unloaded key throws under
+        // Model::preventAccessingMissingAttributes() (strict mode).
+        $eager = $this->likeable->getAttributes()[ReactionType::countAttribute($type)] ?? null;
+
+        if (is_numeric($eager)) {
+            return (int) $eager;
         }
 
         $query = $this->likes();

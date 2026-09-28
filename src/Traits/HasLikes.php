@@ -49,9 +49,9 @@ trait HasLikes
     }
 
     /**
-     * Number of likes for this model. Uses the eager-loaded "likes_count"
-     * value when present (e.g. via withLikesCount()), otherwise runs a live
-     * count. When a type is given, an unscoped eager-loaded count is ignored.
+     * Number of likes for this model. Uses an eager-loaded count when present —
+     * "likes_count" (withLikesCount()) for all reactions, "likes_{type}_count"
+     * (withLikesCount($type)) for one type — otherwise runs a live count.
      */
     public function likesCount(?string $type = null): int
     {
@@ -59,7 +59,8 @@ trait HasLikes
     }
 
     /**
-     * Eager-load the likes count into a "likes_count" attribute.
+     * Eager-load the likes count: all reactions into "likes_count", or one reaction
+     * type into its own "likes_{type}_count" attribute.
      *
      * @param  Builder<Model>  $query
      * @return Builder<Model>
@@ -67,7 +68,7 @@ trait HasLikes
     public function scopeWithLikesCount(Builder $query, ?string $type = null): Builder
     {
         return $query->withCount([
-            'likes' => function (Builder $likes) use ($type): void {
+            'likes as '.ReactionType::countAttribute($type) => function (Builder $likes) use ($type): void {
                 $this->filterByType($likes, $type);
             },
         ]);
@@ -81,7 +82,7 @@ trait HasLikes
      */
     public function scopeOrderByLikes(Builder $query, ?string $type = null): Builder
     {
-        return $this->scopeWithLikesCount($query, $type)->orderBy('likes_count');
+        return $this->scopeWithLikesCount($query, $type)->orderBy(ReactionType::countAttribute($type));
     }
 
     /**
@@ -92,7 +93,7 @@ trait HasLikes
      */
     public function scopeOrderByLikesDesc(Builder $query, ?string $type = null): Builder
     {
-        return $this->scopeWithLikesCount($query, $type)->orderByDesc('likes_count');
+        return $this->scopeWithLikesCount($query, $type)->orderByDesc(ReactionType::countAttribute($type));
     }
 
     /**

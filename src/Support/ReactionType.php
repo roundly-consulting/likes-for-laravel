@@ -49,4 +49,16 @@ final class ReactionType
 
         return $type;
     }
+
+    /**
+     * The attribute an eager count lands in: `likes_count` for all reactions, and
+     * `likes_{type}_count` for one type — kept apart so a typed count can never be read back
+     * as the all-reactions total.
+     *
+     * @throws InvalidReactionTypeException
+     */
+    public static function countAttribute(?string $type): string
+    {
+        return $type === null ? 'likes_count' : 'likes_'.self::resolve($type).'_count';
+    }
 }
