@@ -141,6 +141,136 @@ class User extends Model
 }
 ```
 
+### The `Likes` facade
+
+The facade resolves the actor from the authenticated user by default, so the common path is
+one line. Override the actor or reaction type with the fluent builder, and read one likeable
+with `Likes::for()`:
+
+```php
+use RoundlyConsulting\Likes\Facades\Likes;
+
+Likes::like($post);                     // as the authenticated user
+Likes::unlike($post);
+Likes::toggle($post);
+Likes::react($post);                    // one active reaction per actor + likeable
+Likes::has($post);                      // bool
+Likes::likeMany([$post, $comment]);
+Likes::unlikeMany([$post, $comment]);
+
+Likes::actor($user)->like($comment);    // as any actor
+Likes::actor($team)->toggle($post);
+Likes::as('love')->like($post);         // typed reaction
+Likes::actor($user)->as('wow')->toggle($post);
+Likes::actor($user)->as('love')->react($post);  // switch reaction in place
+Likes::actor($user)->has($post);
+Likes::actor($user)->likeMany([$post, $comment]);
+
+Likes::for($post)->count();             // int — all reactions (uses an eager-loaded likes_count)
+Likes::for($post)->count('love');       // int — one reaction type
+Likes::for($post)->summary($viewer);    // ReactionSummary (viewer defaults to the resolved actor)
+Likes::for($post)->likedBy($user);      // bool — default reaction type unless given
+```
+
+The model traits are sugar over the same manager: `$user->like($post)` is
+`Likes::actor($user)->like($post)`, `$post->likesCount()` is `Likes::for($post)->count()`, and
+`$post->reactionSummary()` is `Likes::for($post)->summary()`.
+
+If no actor is supplied and none can be resolved, a
+`RoundlyConsulting\Likes\Exceptions\NoAuthenticatedActorException` is thrown. Configure a
+custom resolver (for non-`web` guards or non-user actors) via `actor_resolver`:
+
+```php
+'actor_resolver' => fn () => auth('api')->user(),
+// or an invokable class-string:
+'actor_resolver' => \App\Likes\CurrentActorResolver::class,
+```
+
+#### Without the facade
+
+Inject the manager — the same API — or call an action directly:
+
+```php
+use RoundlyConsulting\Likes\Actions\LikeAction;
+use RoundlyConsulting\Likes\DataTransferObjects\LikeData;
+use RoundlyConsulting\Likes\LikeManager;
+
+final class LikePost
+{
+    public function __construct(private LikeManager $likes) {}
+
+    public function __invoke(User $user, Post $post): bool
+    {
+        return $this->likes->actor($user)->as('love')->like($post);
+    }
+}
+
+app(LikeAction::class)->execute(new LikeData($user, $post, 'love'));
+```
+
+| Facade / builder method | Action |
+|---|---|
+| `like()` | `LikeAction` |
+| `unlike()` | `UnlikeAction` |
+| `toggle()` | `ToggleLikeAction` |
+| `react()` | `SwitchReactionAction` |
+| `likeMany()` | `LikeManyAction` |
+| `unlikeMany()` | `UnlikeManyAction` |
+
+#### Faking in your tests
+
+`Likes::fake()` swaps the manager — for the facade **and** for injected `LikeManager`s — with a
+recording fake that **still performs** the operations, so `has()`, `for()` and your own
+queries see real rows. Every write is recorded, whichever way it was made: the facade, the
+`actor()`/`as()` builder, bulk calls (one entry per model), the `GivesLikes` trait and the
+`InteractsWithLikes` helpers.
+
+```php
+use RoundlyConsulting\Likes\Facades\Likes;
+
+$fake = Likes::fake();
+
+$user->like($post);
+Likes::actor($user)->unlike($comment);
+Likes::actor($user)->as('love')->react($photo);
+
+$fake->assertLiked($post);                    // optionally a type: an untyped like matches the default type
+$fake->assertLikedBy($user, $post);
+$fake->assertNotLiked($other);
+$fake->assertLikedCount(1);
+$fake->assertLikedTimes($post, 1);
+$fake->assertUnliked($comment, by: $user);
+$fake->assertReacted($photo, 'love');
+$fake->assertNothingLiked();                  // …and assertNothingUnliked(), assertNothingReacted()
+```
+
+A toggle is recorded as the like or unlike it performed; `react()` is recorded as a reaction
+(assert it with `assertReacted()`, not `assertLiked()`).
+
+The `InteractsWithLikes` trait adds acting-actor helpers:
+
+```php
+uses(RoundlyConsulting\Likes\Testing\InteractsWithLikes::class);
+
+$this->actingAsLiker($user);
+$this->likeAs($post, 'love');
+$this->unlikeAs($post);
+$this->toggleAs($post);
+```
+
+Register the Pest matchers once in your `tests/Pest.php`:
+
+```php
+RoundlyConsulting\Likes\Testing\LikeExpectations::register();
+
+expect($post)->toBeLikedBy($user);
+expect($post)->toBeLikedBy($user, 'love');
+expect($post)->toHaveReaction('love');
+```
+
+The matchers are guarded by `function_exists('expect')`, so Pest is never pulled into your
+runtime.
+
 ### Liking, unliking, toggling
 
 All three verbs are idempotent and return a boolean meaning **"is-liked-now"** — so `like()`
@@ -166,6 +296,9 @@ $post->isLikedBy($user);       // bool — readable alias of hasBeenLikedBy()
 $user->hasLiked($post);        // bool
 
 $post->likesCount();           // int — uses an eager-loaded count when present, else counts live
+
+Likes::for($post)->likedBy($user);  // the same reads through the facade
+Likes::for($post)->count();
 ```
 
 ### Query scopes
@@ -234,7 +367,7 @@ Post::orderByTrending('desc', 'love')->get();   // trending loves
 One grouped query produces a `ReactionSummary` for reaction bars and counters:
 
 ```php
-$summary = $post->reactionSummary();        // optionally pass a viewer
+$summary = $post->reactionSummary();        // optionally pass a viewer; = Likes::for($post)->summary()
 $summary->total;            // int — sum of all reactions
 $summary->countFor('love'); // int
 $summary->has('love');      // bool
@@ -309,35 +442,6 @@ Post::orderByLikesDesc('love')->get();
 ```
 
 An unconfigured type throws `RoundlyConsulting\Likes\Exceptions\InvalidReactionTypeException`.
-
-### The `Likes` facade
-
-The facade resolves the actor from the authenticated user by default, so the common path is
-one line. Override the actor or reaction type with the fluent builder:
-
-```php
-use RoundlyConsulting\Likes\Facades\Likes;
-
-Likes::like($post);                     // as the authenticated user
-Likes::toggle($post);
-Likes::has($post);                      // bool
-
-Likes::actor($user)->like($comment);    // as any actor
-Likes::actor($team)->toggle($post);
-Likes::as('love')->like($post);         // typed reaction
-Likes::actor($user)->as('wow')->toggle($post);
-Likes::actor($user)->as('love')->react($post);  // switch reaction in place
-```
-
-If no actor is supplied and none can be resolved, a
-`RoundlyConsulting\Likes\Exceptions\NoAuthenticatedActorException` is thrown. Configure a
-custom resolver (for non-`web` guards or non-user actors) via `actor_resolver`:
-
-```php
-'actor_resolver' => fn () => auth('api')->user(),
-// or an invokable class-string:
-'actor_resolver' => \App\Likes\CurrentActorResolver::class,
-```
 
 ### Bulk operations
 
@@ -427,50 +531,6 @@ class SyncLikesCounter
 ```
 
 Register it in your own `EventServiceProvider`; the package does not auto-register it.
-
-### Testing toolkit
-
-Host applications get first-class assertions. `Likes::fake()` swaps the manager for a
-recording fake that **still performs** the operations, so you can assert on what happened:
-
-```php
-use RoundlyConsulting\Likes\Facades\Likes;
-
-$fake = Likes::fake();
-
-Likes::actor($user)->like($post);
-
-$fake->assertLiked($post);
-$fake->assertLikedBy($user, $post, 'love');
-$fake->assertNotLiked($other);
-$fake->assertNothingLiked();
-$fake->assertLikedCount(1);
-$fake->assertLikedTimes($post, 1);
-```
-
-The `InteractsWithLikes` trait adds acting-actor helpers:
-
-```php
-uses(RoundlyConsulting\Likes\Testing\InteractsWithLikes::class);
-
-$this->actingAsLiker($user);
-$this->likeAs($post, 'love');
-$this->unlikeAs($post);
-$this->toggleAs($post);
-```
-
-Register the Pest matchers once in your `tests/Pest.php`:
-
-```php
-RoundlyConsulting\Likes\Testing\LikeExpectations::register();
-
-expect($post)->toBeLikedBy($user);
-expect($post)->toBeLikedBy($user, 'love');
-expect($post)->toHaveReaction('love');
-```
-
-The matchers are guarded by `function_exists('expect')`, so Pest is never pulled into your
-runtime.
 
 ## Testing
 

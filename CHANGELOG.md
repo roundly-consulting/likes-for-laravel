@@ -20,9 +20,13 @@ Initial public release.
 - Ranking by weighted reaction score (`orderByLikeScore()`) and by recent activity
   (`orderByTrending()`).
 - `reactionSummary()` breakdowns and a reverse `likedItems()` relation for "what X liked".
-- A `Likes` facade that resolves the authenticated actor, with a configurable actor resolver.
+- A `Likes` facade that resolves the authenticated actor, with a configurable actor resolver,
+  and `Likes::for($likeable)` for reads: `count(?type)`, `summary(?viewer)`,
+  `likedBy($actor, ?type)`. The `HasLikes` / `GivesLikes` traits delegate to the same manager.
 - A `@liked` Blade directive and a `LikeResource` JSON resource.
 - `Liked`, `Unliked` and `ReactionChanged` events, with opt-in broadcasting over
   Laravel Echo.
-- `Likes::fake()` with assertions such as `assertLiked()`, `assertLikedBy()` and
-  `assertNothingLiked()`.
+- `Likes::fake()` (a real static on the facade; also swaps injected `LikeManager`s) recording
+  every write — facade, builder, bulk (per model), `GivesLikes` and `InteractsWithLikes` — with
+  `assertLiked()`, `assertLikedBy()`, `assertNotLiked()`, `assertLikedCount()`,
+  `assertLikedTimes()`, `assertUnliked()`, `assertReacted()` and `assertNothing{Liked,Unliked,Reacted}()`.
