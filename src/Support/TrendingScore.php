@@ -80,19 +80,30 @@ final class TrendingScore
     }
 
     /**
-     * Resolve the trending expression, honouring a per-driver raw override when
-     * configured for the active connection, otherwise the portable template.
-     * The override is host-supplied raw SQL, so the return type widens to a
-     * plain string; advanced hosts that build their own queries use this.
+     * Resolve the trending expression for a database driver: the host's raw override from
+     * `likes.trending.driver_expressions` when one is configured for that driver, otherwise
+     * the portable template. Every `?` in an override is bound to the window cut-off
+     * ({@see self::since()}), so an override can reference the window as often as it needs.
+     *
+     * The driver defaults to that of the likes model's connection. orderByTrending() passes
+     * the driver of the query it builds, since that is where the SQL runs. The override is
+     * host-supplied raw SQL, so the return type widens to a plain string.
      *
      * @return array{expression: string, bindings: list<string|int|float>}
      */
-    public static function trending(): array
+    public static function trending(?string $driver = null): array
     {
-        $override = self::driverOverride();
+        $override = self::driverOverride($driver ?? self::likesDriver());
 
         if ($override !== null) {
-            return ['expression' => $override, 'bindings' => [self::since()]];
+            $since = self::since();
+            $bindings = [];
+
+            for ($i = substr_count($override, '?'); $i > 0; $i--) {
+                $bindings[] = $since;
+            }
+
+            return ['expression' => $override, 'bindings' => $bindings];
         }
 
         return self::portableTrending();
@@ -184,7 +195,7 @@ final class TrendingScore
         return is_int($multiplier) || is_float($multiplier) ? $multiplier : 3;
     }
 
-    private static function driverOverride(): ?string
+    private static function driverOverride(string $driver): ?string
     {
         $expressions = config('likes.trending.driver_expressions', []);
 
@@ -192,20 +203,15 @@ final class TrendingScore
             return null;
         }
 
-        $connection = config('database.default');
-
-        if (! is_string($connection)) {
-            return null;
-        }
-
-        $driver = config("database.connections.{$connection}.driver");
-
-        if (! is_string($driver)) {
-            return null;
-        }
-
         $override = $expressions[$driver] ?? null;
 
-        return is_string($override) ? $override : null;
+        return is_string($override) && trim($override) !== '' ? $override : null;
+    }
+
+    private static function likesDriver(): string
+    {
+        $model = LikeModel::class();
+
+        return (new $model)->getConnection()->getDriverName();
     }
 }

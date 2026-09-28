@@ -13,6 +13,7 @@ use RoundlyConsulting\Likes\DataTransferObjects\ReactionSummary;
 use RoundlyConsulting\Likes\LikeManager;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Support\ActorResolver;
+use RoundlyConsulting\Likes\Support\HostSql;
 use RoundlyConsulting\Likes\Support\LikeModel;
 use RoundlyConsulting\Likes\Support\ReactionType;
 use RoundlyConsulting\Likes\Support\TrendingScore;
@@ -202,7 +203,8 @@ trait HasLikes
 
     /**
      * Rank by a recency-weighted trending score: a weighted all-time score plus
-     * a boosted weighted count of recent likes (config "likes.trending").
+     * a boosted weighted count of recent likes (config "likes.trending"), or the
+     * host's raw per-driver expression from "likes.trending.driver_expressions".
      *
      * @param  Builder<Model>  $query
      * @return Builder<Model>
@@ -213,12 +215,14 @@ trait HasLikes
             $query->select($query->getModel()->getTable().'.*');
         }
 
-        $trending = TrendingScore::portableTrending();
+        // The host's per-driver override when one is configured for the driver this query
+        // runs on, otherwise the portable hybrid.
+        $trending = TrendingScore::trending($query->getModel()->getConnection()->getDriverName());
         $table = $this->likesTable();
         $resolvedType = $type !== null ? ReactionType::resolve($type) : null;
 
         $query->selectSub(function (QueryBuilder $sub) use ($trending, $table, $resolvedType): void {
-            $sub->select(new Expression('coalesce('.$trending['expression'].', 0)'))
+            $sub->select(new HostSql('coalesce('.$trending['expression'].', 0)'))
                 ->addBinding($trending['bindings'], 'select')
                 ->from($table)
                 ->whereColumn($table.'.likeable_id', $this->qualifyColumn($this->getKeyName()))

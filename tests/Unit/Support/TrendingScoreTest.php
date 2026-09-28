@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use RoundlyConsulting\Likes\Support\TrendingScore;
+use RoundlyConsulting\Likes\Tests\Models\CustomConnectionLike;
 use RoundlyConsulting\Testing\Database\DriverMatrix;
 
 it('builds a count expression with no weights', function (): void {
@@ -105,9 +106,38 @@ it('ignores a non-string driver override', function (): void {
     expect(TrendingScore::trending()['expression'])->toContain('created_at >= ?');
 });
 
-it('falls back when the driver is not a string', function (): void {
-    config()->set('likes.trending.driver_expressions', [DriverMatrix::driver() => 'SUM(x)']);
-    config()->set('database.connections.testing.driver', ['weird']);
+it('reads the driver from the likes model connection, not the default connection', function (): void {
+    $live = DriverMatrix::driver();
+    $other = $live === 'sqlite' ? 'pgsql' : 'sqlite';
 
-    expect(TrendingScore::trending()['expression'])->toContain('created_at >= ?');
+    config()->set('likes.trending.driver_expressions', [$live => 'SUM(live)', $other => 'SUM(other)']);
+    config()->set('likes.model', CustomConnectionLike::class);
+    config()->set('database.connections.likes_elsewhere', ['driver' => $other, 'database' => ':memory:']);
+    config()->set('database.default', 'likes_elsewhere');
+
+    try {
+        $expression = TrendingScore::trending()['expression'];
+    } finally {
+        // The suite's teardown works on the default connection; hand it back.
+        config()->set('database.default', 'testing');
+    }
+
+    expect($expression)->toBe('SUM(live)');
+});
+
+it('takes an explicit driver', function (): void {
+    config()->set('likes.trending.driver_expressions', ['pgsql' => 'SUM(pg) + ?', 'mysql' => 'SUM(my)']);
+
+    $trending = TrendingScore::trending('pgsql');
+
+    expect($trending['expression'])->toBe('SUM(pg) + ?')
+        ->and($trending['bindings'])->toBe([TrendingScore::since()])
+        ->and(TrendingScore::trending('mysql')['bindings'])->toBe([])
+        ->and(TrendingScore::trending('sqlsrv')['expression'])->toContain('created_at >= ?');
+});
+
+it('ignores an empty override', function (): void {
+    config()->set('likes.trending.driver_expressions', ['pgsql' => '']);
+
+    expect(TrendingScore::trending('pgsql')['expression'])->toContain('created_at >= ?');
 });

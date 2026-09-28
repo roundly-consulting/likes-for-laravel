@@ -138,7 +138,9 @@ return [
     | recency window; likes inside it are boosted by "recent_multiplier" over
     | all-time activity. The default expression is portable across SQLite,
     | MySQL and Postgres. For an exact per-driver decay curve, supply a raw SQL
-    | fragment per driver in "driver_expressions" (advanced; used verbatim).
+    | aggregate per driver in "driver_expressions" (advanced; used verbatim for
+    | queries on a connection of that driver). Every "?" in it is bound to the
+    | window cut-off (now minus "window").
     |
     | @var array{window: string, recent_multiplier: int|float, driver_expressions: array<string, string>}
     */
@@ -147,7 +149,7 @@ return [
         'window' => '7 days',
         'recent_multiplier' => 3,
         'driver_expressions' => [
-            // 'pgsql' => 'SUM(...) / POW(EXTRACT(EPOCH FROM ...), 1.8)',
+            // 'pgsql' => 'SUM(1 / POWER(EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600 + 2, 1.8))',
         ],
     ],
 
