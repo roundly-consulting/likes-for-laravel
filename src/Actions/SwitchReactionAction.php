@@ -7,13 +7,27 @@ namespace RoundlyConsulting\Likes\Actions;
 use RoundlyConsulting\Likes\DataTransferObjects\LikeData;
 use RoundlyConsulting\Likes\Events\Liked;
 use RoundlyConsulting\Likes\Events\ReactionChanged;
+use RoundlyConsulting\Likes\Events\Unliked;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Support\LikeModel;
+use RoundlyConsulting\Likes\Support\LikeRows;
 
 /**
- * Reacts to a likeable while keeping exactly one active reaction per
- * actor + likeable. Unlike like(), which lets multiple typed reactions
- * co-exist, react() collapses to a single row and switches it in place.
+ * Reacts to a likeable while keeping exactly one active reaction per actor + likeable.
+ * Unlike like(), which lets multiple typed reactions co-exist, react() collapses to a single
+ * active row:
+ *
+ *  - no reaction yet → a fresh like (`Liked`);
+ *  - the requested type is already active → every other active reaction is removed
+ *    (`Unliked` each);
+ *  - another type is active → the newest one switches to the requested type (`ReactionChanged`)
+ *    — in place, or by restoring the requested type's own soft-deleted row, since the table
+ *    holds one row per type — and any further active reactions are removed (`Unliked` each);
+ *  - only removed reactions → the requested type's row (or the newest removed row, switched
+ *    to the requested type) is restored (`Liked`).
+ *
+ * The rows are read and rewritten under a row lock in one transaction, and the events fire
+ * after it commits, so two concurrent reacts cannot both report the same change.
  */
 final class SwitchReactionAction
 {
@@ -22,61 +36,108 @@ final class SwitchReactionAction
      */
     public function execute(LikeData $data): bool
     {
+        // Nothing to switch yet: the first reaction is a plain, race-safe insert. Kept out of
+        // the locked transaction because a locking read that finds no row takes a gap lock on
+        // MySQL, and two such inserters deadlock each other.
+        if (! LikeRows::exists($data->actor, $data->likeable)) {
+            $like = LikeRows::activate($data);
+
+            if ($like !== null) {
+                Liked::dispatch($data->actor, $data->likeable, $data->type, $like);
+            }
+        }
+
         $model = LikeModel::class();
 
-        /** @var Like|null $existing */
-        $existing = $model::withTrashed()
-            ->whereMorphedTo('actor', $data->actor)
-            ->whereMorphedTo('likeable', $data->likeable)
-            ->orderByDesc('id')
-            ->first();
+        /** @var list<Liked|Unliked|ReactionChanged> $events */
+        $events = (new $model)->getConnection()->transaction(fn (): array => $this->collapse($data));
 
-        // No prior reaction (or only soft-deleted): behave like a fresh like.
-        if ($existing === null || $existing->trashed()) {
-            return $this->createOrRestore($model, $data, $existing);
+        foreach ($events as $event) {
+            event($event);
         }
-
-        // Same reaction already active: nothing to do.
-        if ($existing->type === $data->type) {
-            return true;
-        }
-
-        $from = $existing->type;
-
-        $existing->update(['type' => $data->type]);
-
-        ReactionChanged::dispatch($data->actor, $data->likeable, $from, $data->type, $existing);
 
         return true;
     }
 
-    private function createOrRestore(string $model, LikeData $data, ?Like $existing): bool
+    /**
+     * Bring the locked rows to exactly one active reaction of the requested type and return
+     * the events that describe the change.
+     *
+     * @return list<Liked|Unliked|ReactionChanged>
+     */
+    private function collapse(LikeData $data, bool $retried = false): array
     {
-        if ($existing !== null && $existing->trashed()) {
-            $existing->restore();
-            $existing->update(['type' => $data->type]);
+        $rows = LikeRows::lockAll($data->actor, $data->likeable);
 
-            $this->dispatchLiked($data, $existing);
+        $target = $rows->firstWhere('type', $data->type);
 
-            return true;
+        $others = $rows
+            ->reject(static fn (Like $row): bool => $row->trashed() || $row->type === $data->type)
+            ->sortByDesc('id')
+            ->values();
+
+        if ($target !== null && ! $target->trashed()) {
+            return $this->remove($data, $others);
         }
 
-        /** @var Like $like */
-        $like = $model::query()->create([
-            'actor_id' => $data->actor->getKey(),
-            'actor_type' => $data->actor->getMorphClass(),
-            'likeable_id' => $data->likeable->getKey(),
-            'likeable_type' => $data->likeable->getMorphClass(),
-            'type' => $data->type,
-        ]);
+        $from = $others->shift();
 
-        $this->dispatchLiked($data, $like);
+        if ($from === null) {
+            // Only removed reactions: bring the requested one back, reusing a removed row.
+            $reuse = $target ?? $rows->sortByDesc('id')->first();
 
-        return true;
+            if ($reuse === null) {
+                // Every row vanished under us (a host force-deleted them): start afresh.
+                $like = LikeRows::activate($data);
+
+                return $like === null ? [] : [new Liked($data->actor, $data->likeable, $data->type, $like)];
+            }
+
+            if ($reuse->type !== $data->type && ! LikeRows::retype($reuse, $data->type)) {
+                return $retried ? [] : $this->collapse($data, retried: true);
+            }
+
+            $reuse->restore();
+
+            return [new Liked($data->actor, $data->likeable, $data->type, $reuse)];
+        }
+
+        $previous = $from->type;
+
+        if ($target !== null) {
+            // The requested type has its own (soft-deleted) row; the unique index forbids
+            // renaming another row onto it, so restore it and retire the old reaction.
+            $target->restore();
+            $from->delete();
+            $like = $target;
+        } elseif (LikeRows::retype($from, $data->type)) {
+            $like = $from;
+        } else {
+            // A concurrent request created the requested type after the rows were locked:
+            // adopt it and retire the rest instead of failing.
+            return $retried ? [] : $this->collapse($data, retried: true);
+        }
+
+        return [
+            new ReactionChanged($data->actor, $data->likeable, $previous, $data->type, $like),
+            ...$this->remove($data, $others),
+        ];
     }
 
-    private function dispatchLiked(LikeData $data, Like $like): void
+    /**
+     * @param  iterable<Like>  $rows
+     * @return list<Unliked>
+     */
+    private function remove(LikeData $data, iterable $rows): array
     {
-        Liked::dispatch($data->actor, $data->likeable, $data->type, $like);
+        $events = [];
+
+        foreach ($rows as $row) {
+            $row->delete();
+
+            $events[] = new Unliked($data->actor, $data->likeable, $row->type, $row);
+        }
+
+        return $events;
     }
 }
