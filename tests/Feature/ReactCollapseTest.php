@@ -126,3 +126,33 @@ it('reuses the target row when only removed reactions remain', function (): void
         ->and(Like::withTrashed()->count())->toBe(2)
         ->and($this->events)->toBe(['liked:love']);
 });
+
+it('adopts a concurrently inserted target when only removed reactions remain', function (): void {
+    $this->actor->like($this->post, 'like');
+    $this->actor->unlike($this->post, 'like');
+    $this->events = [];
+
+    // The removed `like` row would be reused and retyped to love — but a concurrent
+    // like('love') inserts that row right after react() locked what it saw.
+    Interleave::afterRead(fn () => $this->actor->like($this->post, 'love'), nth: 2);
+
+    $this->actor->react($this->post, 'love');
+
+    expect(activeTypes())->toBe(['love'])
+        ->and(Like::withTrashed()->count())->toBe(2)
+        ->and($this->events)->toBe(['liked:love']);
+});
+
+it('starts afresh when every row vanished before the lock', function (): void {
+    $this->actor->like($this->post, 'like');
+    $this->actor->unlike($this->post, 'like');
+    $this->events = [];
+
+    // A host job force-deletes the actor's history between react()'s check and its lock.
+    Interleave::afterRead(fn () => Like::withTrashed()->forceDelete());
+
+    $this->actor->react($this->post, 'love');
+
+    expect(activeTypes())->toBe(['love'])
+        ->and($this->events)->toBe(['liked:love']);
+});
