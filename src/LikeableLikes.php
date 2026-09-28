@@ -127,12 +127,16 @@ final readonly class LikeableLikes
             return null;
         }
 
-        $type = $this->likes()
+        $query = $this->likes()
             ->getQuery()
             ->whereNull('deleted_at')
             ->where('actor_id', $viewer->getKey())
-            ->where('actor_type', $viewer->getMorphClass())
-            ->value('type');
+            ->where('actor_type', $viewer->getMorphClass());
+
+        // Several active reactions: the first configured one wins, never an arbitrary row.
+        ReactionType::orderByPreference($query);
+
+        $type = $query->value('type');
 
         return is_string($type) ? $type : null;
     }

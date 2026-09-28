@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Likes\Support;
 
+use Illuminate\Database\Query\Builder;
 use RoundlyConsulting\Likes\Exceptions\InvalidReactionTypeException;
 
 /**
@@ -60,5 +61,23 @@ final class ReactionType
     public static function countAttribute(?string $type): string
     {
         return $type === null ? 'likes_count' : 'likes_'.self::resolve($type).'_count';
+    }
+
+    /**
+     * Order a likes query by reaction preference: the order of `likes.reactions`, then any
+     * type no longer configured, alphabetically. This is how the viewer's reaction is picked
+     * when they hold several — deterministically, and by the same rule that breaks `top` ties.
+     *
+     * One `type = ? desc` term per configured type: portable (a boolean sorts on SQLite,
+     * MySQL and Postgres alike), the types are bound, and the column stays unqualified so it
+     * resolves to the likes table even inside a correlated sub-select.
+     */
+    public static function orderByPreference(Builder $query): void
+    {
+        foreach (self::allowed() as $type) {
+            $query->orderByRaw('type = ? desc', [$type]);
+        }
+
+        $query->orderBy('type');
     }
 }

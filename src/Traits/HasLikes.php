@@ -126,9 +126,10 @@ trait HasLikes
 
     /**
      * Hydrate per-row viewer state for an entire feed page in a single query:
-     * an "is_liked" boolean and the viewer's "liked_reaction" type. The actor
-     * defaults to the resolved auth actor; for guests it renders is_liked=false
-     * and liked_reaction=null rather than throwing.
+     * an "is_liked" 0/1 flag and the viewer's "liked_reaction" type (the first
+     * configured one when the viewer left several). The actor defaults to the
+     * resolved auth actor; for guests it renders is_liked=0 and
+     * liked_reaction=null rather than throwing.
      *
      * @param  Builder<Model>  $query
      * @return Builder<Model>
@@ -152,15 +153,14 @@ trait HasLikes
         $morphClass = $this->getMorphClass();
         $resolvedType = $type !== null ? ReactionType::resolve($type) : null;
 
-        $correlate = function (QueryBuilder $sub, Expression $select) use ($table, $morphClass, $actor, $resolvedType): void {
+        $correlate = function (QueryBuilder $sub, Expression|string $select) use ($table, $morphClass, $actor, $resolvedType): void {
             $sub->select($select)
                 ->from($table)
                 ->whereColumn($table.'.likeable_id', $this->qualifyColumn($this->getKeyName()))
                 ->where($table.'.likeable_type', $morphClass)
                 ->where($table.'.actor_id', $actor->getKey())
                 ->where($table.'.actor_type', $actor->getMorphClass())
-                ->whereNull($table.'.deleted_at')
-                ->limit(1);
+                ->whereNull($table.'.deleted_at');
 
             if ($resolvedType !== null) {
                 $sub->where($table.'.type', $resolvedType);
@@ -169,11 +169,19 @@ trait HasLikes
 
         return $query
             ->selectSub(
-                fn (QueryBuilder $sub) => $correlate($sub, new Expression('count(*)')),
+                // A 0/1 flag, not the number of reactions the viewer left.
+                fn (QueryBuilder $sub) => $correlate($sub, new Expression('case when count(*) > 0 then 1 else 0 end')),
                 'is_liked',
             )
             ->selectSub(
-                fn (QueryBuilder $sub) => $correlate($sub, new Expression('type')),
+                function (QueryBuilder $sub) use ($correlate, $table): void {
+                    $correlate($sub, $table.'.type');
+
+                    // Several active reactions: the first configured one wins, never an
+                    // arbitrary row.
+                    ReactionType::orderByPreference($sub);
+                    $sub->limit(1);
+                },
                 'liked_reaction',
             );
     }
