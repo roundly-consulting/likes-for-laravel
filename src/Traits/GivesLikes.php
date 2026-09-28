@@ -7,6 +7,7 @@ namespace RoundlyConsulting\Likes\Traits;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use RoundlyConsulting\Likes\LikeManager;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\PendingLike;
@@ -109,35 +110,37 @@ trait GivesLikes
     }
 
     /**
-     * A relation to the models of the given class this actor actively likes.
-     * Eager-loadable, paginatable, and chainable like any Eloquent relation.
+     * A relation to the models of the given class this actor actively likes, each item
+     * once however many reactions it has (the pivot carries the actor's earliest active
+     * reaction). Eager-loadable, paginatable, and chainable like any Eloquent relation.
      *
      * @param  class-string<Model>  $likeableClass
      * @return MorphToMany<Model, $this>
      */
     public function likesOf(string $likeableClass): MorphToMany
     {
-        $table = config('likes.table', 'likes');
-        $table = is_string($table) ? $table : 'likes';
+        $relation = $this->reactionsOf($likeableClass);
+        $table = $relation->getTable();
 
-        /** @var MorphToMany<Model, $this> $relation */
-        $relation = $this->morphedByMany(
-            $likeableClass,
-            'likeable',
-            $table,
-            'actor_id',
-            'likeable_id',
-        )
-            ->wherePivot('actor_type', $this->getMorphClass())
-            ->wherePivotNull('deleted_at')
-            ->withPivot('type');
+        // The relation joins the likes table, so an item with several active reactions
+        // would come back once per reaction (and paginate()->total() would count every
+        // copy). Join only the actor's first active reaction on each item instead.
+        $relation->getBaseQuery()->where($table.'.id', '=', function (QueryBuilder $first) use ($table): void {
+            $first->selectRaw('min(id)')
+                ->from($table.' as likes_first')
+                ->whereColumn('likes_first.actor_type', $table.'.actor_type')
+                ->whereColumn('likes_first.actor_id', $table.'.actor_id')
+                ->whereColumn('likes_first.likeable_type', $table.'.likeable_type')
+                ->whereColumn('likes_first.likeable_id', $table.'.likeable_id')
+                ->whereNull('likes_first.deleted_at');
+        });
 
         return $relation;
     }
 
     /**
-     * The models of the given class this actor actively likes, optionally
-     * filtered by reaction type. Returns the relation so callers can chain
+     * The models of the given class this actor actively likes, each once, optionally
+     * narrowed to one reaction type. Returns the relation so callers can chain
      * constraints, eager loads, or pagination and then ->get().
      *
      * @param  class-string<Model>  $likeableClass
@@ -145,11 +148,36 @@ trait GivesLikes
      */
     public function likedItems(string $likeableClass, ?string $type = null): MorphToMany
     {
-        $relation = $this->likesOf($likeableClass);
-
-        if ($type !== null) {
-            $relation->wherePivot('type', ReactionType::resolve($type));
+        if ($type === null) {
+            return $this->likesOf($likeableClass);
         }
+
+        // One row per actor + likeable + type is a unique index, so a typed relation is
+        // distinct already.
+        return $this->reactionsOf($likeableClass)->wherePivot('type', ReactionType::resolve($type));
+    }
+
+    /**
+     * Every active reaction of this actor on models of the given class, one row each.
+     *
+     * @param  class-string<Model>  $likeableClass
+     * @return MorphToMany<Model, $this>
+     */
+    private function reactionsOf(string $likeableClass): MorphToMany
+    {
+        $table = config('likes.table', 'likes');
+
+        /** @var MorphToMany<Model, $this> $relation */
+        $relation = $this->morphedByMany(
+            $likeableClass,
+            'likeable',
+            is_string($table) ? $table : 'likes',
+            'actor_id',
+            'likeable_id',
+        )
+            ->wherePivot('actor_type', $this->getMorphClass())
+            ->wherePivotNull('deleted_at')
+            ->withPivot('type');
 
         return $relation;
     }
