@@ -11,6 +11,7 @@ use RoundlyConsulting\PackageToolkit\Concerns\RegistersBladeDirectives;
 use RoundlyConsulting\PackageToolkit\Concerns\RegistersBlueprintMacros;
 use RoundlyConsulting\PackageToolkit\Package;
 use RoundlyConsulting\PackageToolkit\PackageServiceProvider;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 
 final class LikesServiceProvider extends PackageServiceProvider
 {
@@ -27,7 +28,7 @@ final class LikesServiceProvider extends PackageServiceProvider
             ->contributesToAbout(static fn (): array => [
                 'Reactions' => implode(', ', ReactionType::allowed()),
                 'Default reaction' => ReactionType::default(),
-                'Broadcasting' => config('likes.broadcast.enabled') === true ? 'ENABLED' : 'OFF',
+                'Broadcasting' => Config::boolean('likes.broadcast.enabled') ? 'ENABLED' : 'OFF',
             ]);
     }
 

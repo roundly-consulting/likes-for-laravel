@@ -35,6 +35,18 @@ final class ReactionChanged implements ShouldBroadcast
         return 'reaction.changed';
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function broadcastWith(): array
+    {
+        return [
+            ...$this->broadcastIds($this->actor, $this->likeable, $this->like),
+            'from' => $this->from,
+            'to' => $this->to,
+        ];
+    }
+
     protected function broadcastable(): Model
     {
         return $this->likeable;

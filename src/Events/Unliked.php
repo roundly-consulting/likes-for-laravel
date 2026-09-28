@@ -29,6 +29,17 @@ final class Unliked implements ShouldBroadcast
         return 'like.removed';
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function broadcastWith(): array
+    {
+        return [
+            ...$this->broadcastIds($this->actor, $this->likeable, $this->like),
+            'type' => $this->type,
+        ];
+    }
+
     protected function broadcastable(): Model
     {
         return $this->likeable;

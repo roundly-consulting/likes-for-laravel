@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Broadcasting\BroadcastEvent;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -108,3 +109,59 @@ it('still dispatches plainly when broadcasting is enabled', function (): void {
 
     Event::assertDispatched(Liked::class);
 });
+
+/**
+ * With no broadcastWith(), Laravel serialises every public property — so the actor's whole
+ * model (email, phone, anything not hidden) went out to every subscriber of the likeable's
+ * channel, and on a `public` channel to anyone. Only ids and the reaction may leave.
+ */
+function broadcastPayload(object $event): array
+{
+    $job = new BroadcastEvent($event);
+
+    return (new ReflectionMethod($job, 'getPayloadFromEvent'))->invoke($job, $event);
+}
+
+it('broadcasts only ids and the reaction type, never the actor model', function (): void {
+    config()->set('likes.broadcast.enabled', true);
+
+    $event = makeLikedEvent();
+    $event->actor->setAttribute('email', 'alice@example.com');
+
+    $payload = broadcastPayload($event);
+
+    expect($payload)->toBe([
+        'like_id' => $event->like->getKey(),
+        'actor_type' => $event->actor->getMorphClass(),
+        'actor_id' => $event->actor->getKey(),
+        'likeable_type' => $event->likeable->getMorphClass(),
+        'likeable_id' => $event->likeable->getKey(),
+        'type' => 'like',
+        'socket' => null,
+    ])
+        ->and(json_encode($payload))->not->toContain('alice@example.com');
+});
+
+it('broadcasts the same id-only shape for unliked and the from/to pair for a switch', function (): void {
+    $liked = makeLikedEvent();
+    $unliked = new Unliked($liked->actor, $liked->likeable, 'like', $liked->like);
+    $changed = new ReactionChanged($liked->actor, $liked->likeable, 'like', 'love', $liked->like);
+
+    expect(array_keys(broadcastPayload($unliked)))
+        ->toBe(['like_id', 'actor_type', 'actor_id', 'likeable_type', 'likeable_id', 'type', 'socket'])
+        ->and(broadcastPayload($changed))->toMatchArray(['from' => 'like', 'to' => 'love'])
+        ->and(broadcastPayload($changed))->not->toHaveKeys(['actor', 'likeable', 'like', 'type']);
+});
+
+it('reads an env-string broadcast flag as a boolean', function (string $value, bool $expected): void {
+    config()->set('likes.broadcast.enabled', $value);
+
+    expect(makeLikedEvent()->broadcastWhen())->toBe($expected);
+})->with([
+    'true' => ['true', true],
+    '1' => ['1', true],
+    'on' => ['on', true],
+    'false' => ['false', false],
+    '0' => ['0', false],
+    'off' => ['off', false],
+]);

@@ -54,3 +54,14 @@ it('reports broadcasting off by default', function (): void {
         mustRender: ['Broadcasting', 'OFF'],
     );
 });
+
+it('reports broadcasting enabled from an env-string flag', function (): void {
+    // LIKES_BROADCAST=1 reaches config as the string "1"; the events broadcast on it, so
+    // `about` must not claim OFF.
+    config()->set('likes.broadcast.enabled', '1');
+
+    expect('likes')->toLeakNoSecrets(
+        secrets: [ActorTestModel::class],
+        mustRender: ['Broadcasting', 'ENABLED'],
+    );
+});
