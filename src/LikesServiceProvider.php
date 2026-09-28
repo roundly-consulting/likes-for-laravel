@@ -35,7 +35,7 @@ final class LikesServiceProvider extends PackageServiceProvider
     {
         parent::register();
 
-        $this->app->singleton(LikeManager::class, fn (): LikeManager => new LikeManager);
+        $this->app->singleton(LikeManager::class);
     }
 
     public function boot(): void

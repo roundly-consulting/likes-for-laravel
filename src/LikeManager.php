@@ -5,30 +5,20 @@ declare(strict_types=1);
 namespace RoundlyConsulting\Likes;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Facade;
-use RoundlyConsulting\Likes\Testing\LikesFake;
 
+/**
+ * The `Likes` facade root. Writes go through a {@see PendingLike} (as the resolved actor, or an
+ * explicit `actor()` / reaction type `as()`); reads for one likeable go through `for()`. Model
+ * traits (`GivesLikes`, `HasLikes`) delegate here, so `Likes::fake()` sees every call.
+ */
 class LikeManager
 {
-    /**
-     * Swap the manager for a recording fake and return it for assertions.
-     */
-    public static function fake(): LikesFake
-    {
-        $fake = new LikesFake;
-
-        app()->instance(self::class, $fake);
-        Facade::clearResolvedInstance(self::class);
-
-        return $fake;
-    }
-
     /**
      * Start a fluent chain for a specific actor.
      */
     public function actor(Model $actor): PendingLike
     {
-        return (new PendingLike)->actor($actor);
+        return $this->pending()->actor($actor);
     }
 
     /**
@@ -36,7 +26,7 @@ class LikeManager
      */
     public function as(string $type): PendingLike
     {
-        return (new PendingLike)->as($type);
+        return $this->pending()->as($type);
     }
 
     /**
@@ -44,7 +34,7 @@ class LikeManager
      */
     public function like(Model $likeable): bool
     {
-        return (new PendingLike)->like($likeable);
+        return $this->pending()->like($likeable);
     }
 
     /**
@@ -52,7 +42,7 @@ class LikeManager
      */
     public function unlike(Model $likeable): bool
     {
-        return (new PendingLike)->unlike($likeable);
+        return $this->pending()->unlike($likeable);
     }
 
     /**
@@ -60,7 +50,7 @@ class LikeManager
      */
     public function toggle(Model $likeable): bool
     {
-        return (new PendingLike)->toggle($likeable);
+        return $this->pending()->toggle($likeable);
     }
 
     /**
@@ -69,7 +59,7 @@ class LikeManager
      */
     public function react(Model $likeable): bool
     {
-        return (new PendingLike)->react($likeable);
+        return $this->pending()->react($likeable);
     }
 
     /**
@@ -77,7 +67,7 @@ class LikeManager
      */
     public function has(Model $likeable): bool
     {
-        return (new PendingLike)->has($likeable);
+        return $this->pending()->has($likeable);
     }
 
     /**
@@ -85,7 +75,7 @@ class LikeManager
      */
     public function likeMany(iterable $likeables): void
     {
-        (new PendingLike)->likeMany($likeables);
+        $this->pending()->likeMany($likeables);
     }
 
     /**
@@ -93,6 +83,22 @@ class LikeManager
      */
     public function unlikeMany(iterable $likeables): void
     {
-        (new PendingLike)->unlikeMany($likeables);
+        $this->pending()->unlikeMany($likeables);
+    }
+
+    /**
+     * Read the likes of one likeable: counts, the reaction breakdown, who liked it.
+     */
+    public function for(Model $likeable): LikeableLikes
+    {
+        return new LikeableLikes($likeable);
+    }
+
+    /**
+     * The builder every write starts from. The fake returns a recording one.
+     */
+    protected function pending(): PendingLike
+    {
+        return new PendingLike;
     }
 }

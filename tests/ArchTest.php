@@ -75,3 +75,9 @@ ArchPresets::morphColumnsUseTheSeam(__DIR__.'/../database/migrations');
 ArchPresets::runtimeRequireIsWhitelisted(__DIR__.'/../composer.json');
 
 ArchPresets::noDebuggingLeftovers();
+
+/**
+ * One path: GivesLikes / HasLikes reach behaviour through LikeManager (`actor()`, `for()`),
+ * never an action — so `Likes::fake()` records `$user->like($post)` too.
+ */
+ArchPresets::modelsGoThroughTheFacade('RoundlyConsulting\Likes');

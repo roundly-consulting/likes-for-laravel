@@ -7,18 +7,16 @@ namespace RoundlyConsulting\Likes\Traits;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
-use RoundlyConsulting\Likes\Actions\LikeAction;
-use RoundlyConsulting\Likes\Actions\LikeManyAction;
-use RoundlyConsulting\Likes\Actions\SwitchReactionAction;
-use RoundlyConsulting\Likes\Actions\ToggleLikeAction;
-use RoundlyConsulting\Likes\Actions\UnlikeAction;
-use RoundlyConsulting\Likes\Actions\UnlikeManyAction;
-use RoundlyConsulting\Likes\DataTransferObjects\LikeData;
+use RoundlyConsulting\Likes\LikeManager;
 use RoundlyConsulting\Likes\Models\Like;
+use RoundlyConsulting\Likes\PendingLike;
 use RoundlyConsulting\Likes\Support\LikeModel;
 use RoundlyConsulting\Likes\Support\ReactionType;
 
 /**
+ * The actor side. Every write and check goes through the `Likes` manager as this model, so
+ * `Likes::fake()` records calls made here too.
+ *
  * @phpstan-require-extends Model
  */
 trait GivesLikes
@@ -35,10 +33,7 @@ trait GivesLikes
 
     public function hasLiked(Model $model, ?string $type = null): bool
     {
-        return $this->likes()
-            ->whereMorphedTo('likeable', $model)
-            ->where('type', ReactionType::resolve($type))
-            ->exists();
+        return app(LikeManager::class)->for($model)->likedBy($this, $type);
     }
 
     /**
@@ -48,7 +43,7 @@ trait GivesLikes
      */
     public function like(Model $model, ?string $type = null): bool
     {
-        return app(LikeAction::class)->execute(new LikeData($this, $model, $type));
+        return $this->likesAs($type)->like($model);
     }
 
     /**
@@ -58,7 +53,7 @@ trait GivesLikes
      */
     public function unlike(Model $model, ?string $type = null): bool
     {
-        return app(UnlikeAction::class)->execute(new LikeData($this, $model, $type));
+        return $this->likesAs($type)->unlike($model);
     }
 
     /**
@@ -68,7 +63,7 @@ trait GivesLikes
      */
     public function toggleLike(Model $model, ?string $type = null): bool
     {
-        return app(ToggleLikeAction::class)->execute(new LikeData($this, $model, $type));
+        return $this->likesAs($type)->toggle($model);
     }
 
     /**
@@ -80,7 +75,7 @@ trait GivesLikes
      */
     public function react(Model $model, ?string $type = null): bool
     {
-        return app(SwitchReactionAction::class)->execute(new LikeData($this, $model, $type));
+        return $this->likesAs($type)->react($model);
     }
 
     /**
@@ -100,7 +95,7 @@ trait GivesLikes
      */
     public function likeMany(iterable $models, ?string $type = null): void
     {
-        app(LikeManyAction::class)->execute($this, $models, $type);
+        $this->likesAs($type)->likeMany($models);
     }
 
     /**
@@ -110,7 +105,7 @@ trait GivesLikes
      */
     public function unlikeMany(iterable $models, ?string $type = null): void
     {
-        app(UnlikeManyAction::class)->execute($this, $models, $type);
+        $this->likesAs($type)->unlikeMany($models);
     }
 
     /**
@@ -157,5 +152,15 @@ trait GivesLikes
         }
 
         return $relation;
+    }
+
+    /**
+     * The manager's builder acting as this model, with the reaction type when one is given.
+     */
+    protected function likesAs(?string $type): PendingLike
+    {
+        $pending = app(LikeManager::class)->actor($this);
+
+        return $type === null ? $pending : $pending->as($type);
     }
 }

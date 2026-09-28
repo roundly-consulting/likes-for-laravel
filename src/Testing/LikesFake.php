@@ -10,44 +10,17 @@ use RoundlyConsulting\Likes\LikeManager;
 use RoundlyConsulting\Likes\PendingLike;
 
 /**
- * A recording, still-performing variant of {@see LikeManager} for host-app
- * tests. Operations run against the database as usual while assertions verify
- * what happened, matching Laravel's *::fake() ergonomics.
+ * A recording, still-performing variant of {@see LikeManager} for host-app tests, installed by
+ * `Likes::fake()`. Every write — flat, through `actor()`/`as()`, bulk, or from the
+ * `GivesLikes` / `InteractsWithLikes` traits — runs through a {@see RecordingPendingLike}, so it
+ * still hits the database (and `has()` / `for()` read that real state) while the `assert*()`
+ * helpers verify what happened. A toggle is recorded as the like or unlike it performed; bulk
+ * calls record one entry per model.
  */
 final class LikesFake extends LikeManager
 {
     /** @var list<RecordedLike> */
     private array $recorded = [];
-
-    public function actor(Model $actor): PendingLike
-    {
-        return (new RecordingPendingLike($this))->actor($actor);
-    }
-
-    public function as(string $type): PendingLike
-    {
-        return (new RecordingPendingLike($this))->as($type);
-    }
-
-    public function like(Model $likeable): bool
-    {
-        return (new RecordingPendingLike($this))->like($likeable);
-    }
-
-    public function unlike(Model $likeable): bool
-    {
-        return (new RecordingPendingLike($this))->unlike($likeable);
-    }
-
-    public function toggle(Model $likeable): bool
-    {
-        return (new RecordingPendingLike($this))->toggle($likeable);
-    }
-
-    public function react(Model $likeable): bool
-    {
-        return (new RecordingPendingLike($this))->react($likeable);
-    }
 
     /**
      * Record a performed operation. Called by {@see RecordingPendingLike}.
@@ -62,7 +35,7 @@ final class LikesFake extends LikeManager
     public function assertLiked(Model $likeable, ?string $type = null): void
     {
         Assert::assertTrue(
-            $this->hasOperation('like', $likeable, null, $type),
+            $this->hasOperation(RecordedLike::LIKE, $likeable, null, $type),
             'Expected a like to be recorded for the model, but none was.',
         );
     }
@@ -70,7 +43,7 @@ final class LikesFake extends LikeManager
     public function assertNotLiked(Model $likeable): void
     {
         Assert::assertFalse(
-            $this->hasOperation('like', $likeable),
+            $this->hasOperation(RecordedLike::LIKE, $likeable),
             'Expected no like to be recorded for the model, but one was.',
         );
     }
@@ -78,7 +51,7 @@ final class LikesFake extends LikeManager
     public function assertLikedBy(Model $actor, Model $likeable, ?string $type = null): void
     {
         Assert::assertTrue(
-            $this->hasOperation('like', $likeable, $actor, $type),
+            $this->hasOperation(RecordedLike::LIKE, $likeable, $actor, $type),
             'Expected the actor to have liked the model, but no such like was recorded.',
         );
     }
@@ -86,7 +59,7 @@ final class LikesFake extends LikeManager
     public function assertNothingLiked(): void
     {
         Assert::assertEmpty(
-            array_filter($this->recorded, static fn (RecordedLike $r): bool => $r->operation === 'like'),
+            $this->operations(RecordedLike::LIKE),
             'Expected no likes to be recorded, but some were.',
         );
     }
@@ -95,7 +68,7 @@ final class LikesFake extends LikeManager
     {
         Assert::assertCount(
             $count,
-            array_filter($this->recorded, static fn (RecordedLike $r): bool => $r->operation === 'like'),
+            $this->operations(RecordedLike::LIKE),
             "Expected [{$count}] likes to be recorded.",
         );
     }
@@ -103,8 +76,8 @@ final class LikesFake extends LikeManager
     public function assertLikedTimes(Model $likeable, int $count): void
     {
         $matches = array_filter(
-            $this->recorded,
-            static fn (RecordedLike $r): bool => $r->operation === 'like' && $r->matches($likeable),
+            $this->operations(RecordedLike::LIKE),
+            static fn (RecordedLike $r): bool => $r->matches($likeable),
         );
 
         Assert::assertCount(
@@ -114,13 +87,55 @@ final class LikesFake extends LikeManager
         );
     }
 
+    public function assertUnliked(Model $likeable, ?string $type = null, ?Model $by = null): void
+    {
+        Assert::assertTrue(
+            $this->hasOperation(RecordedLike::UNLIKE, $likeable, $by, $type),
+            'Expected an unlike to be recorded for the model, but none was.',
+        );
+    }
+
+    public function assertNothingUnliked(): void
+    {
+        Assert::assertEmpty(
+            $this->operations(RecordedLike::UNLIKE),
+            'Expected no unlikes to be recorded, but some were.',
+        );
+    }
+
+    public function assertReacted(Model $likeable, ?string $type = null, ?Model $by = null): void
+    {
+        Assert::assertTrue(
+            $this->hasOperation(RecordedLike::REACT, $likeable, $by, $type),
+            'Expected a reaction to be recorded for the model, but none was.',
+        );
+    }
+
+    public function assertNothingReacted(): void
+    {
+        Assert::assertEmpty(
+            $this->operations(RecordedLike::REACT),
+            'Expected no reactions to be recorded, but some were.',
+        );
+    }
+
+    protected function pending(): PendingLike
+    {
+        return new RecordingPendingLike($this);
+    }
+
+    /** @return list<RecordedLike> */
+    private function operations(string $operation): array
+    {
+        return array_values(array_filter(
+            $this->recorded,
+            static fn (RecordedLike $r): bool => $r->operation === $operation,
+        ));
+    }
+
     private function hasOperation(string $operation, Model $likeable, ?Model $actor = null, ?string $type = null): bool
     {
-        foreach ($this->recorded as $record) {
-            if ($record->operation !== $operation) {
-                continue;
-            }
-
+        foreach ($this->operations($operation) as $record) {
             if (! $record->matches($likeable, $type)) {
                 continue;
             }

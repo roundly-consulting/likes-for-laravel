@@ -80,12 +80,13 @@ it('records a toggle as a like or an unlike', function (): void {
     $fake->assertLikedTimes($this->post, 1);
 });
 
-it('records a react as a like', function (): void {
+it('records a react as a reaction, not a like', function (): void {
     $fake = Likes::fake();
 
     Likes::actor($this->actor)->as('love')->react($this->post);
 
-    $fake->assertLiked($this->post, 'love');
+    $fake->assertReacted($this->post, 'love');
+    $fake->assertNothingLiked();
 });
 
 it('records an unlike without marking the model liked', function (): void {
@@ -111,7 +112,9 @@ it('records manager-level like, unlike, toggle and react', function (): void {
     Likes::toggle($this->post);
     Likes::react($this->other);
 
-    $fake->assertLiked($this->other);
+    $fake->assertUnliked($this->post);
+    $fake->assertLikedTimes($this->post, 2);
+    $fake->assertReacted($this->other);
 });
 
 it('skips unlike records when asserting a like', function (): void {

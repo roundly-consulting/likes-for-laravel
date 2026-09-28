@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\Query\Expression;
 use RoundlyConsulting\Likes\DataTransferObjects\ReactionSummary;
+use RoundlyConsulting\Likes\LikeManager;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Support\ActorResolver;
 use RoundlyConsulting\Likes\Support\LikeModel;
@@ -17,6 +18,9 @@ use RoundlyConsulting\Likes\Support\ReactionType;
 use RoundlyConsulting\Likes\Support\TrendingScore;
 
 /**
+ * The likeable side: relation, scopes and feed/ranking selects. Counts, the reaction breakdown
+ * and "liked by" checks read through `Likes::for($this)`.
+ *
  * @phpstan-require-extends Model
  */
 trait HasLikes
@@ -33,10 +37,7 @@ trait HasLikes
 
     public function hasBeenLikedBy(Model $actor, ?string $type = null): bool
     {
-        return $this->likes()
-            ->whereMorphedTo('actor', $actor)
-            ->where('type', ReactionType::resolve($type))
-            ->exists();
+        return app(LikeManager::class)->for($this)->likedBy($actor, $type);
     }
 
     /**
@@ -54,17 +55,7 @@ trait HasLikes
      */
     public function likesCount(?string $type = null): int
     {
-        if ($type === null && $this->getAttribute('likes_count') !== null) {
-            return (int) $this->getAttribute('likes_count');
-        }
-
-        $query = $this->likes();
-
-        if ($type !== null) {
-            $query->where('type', ReactionType::resolve($type));
-        }
-
-        return $query->count();
+        return app(LikeManager::class)->for($this)->count($type);
     }
 
     /**
@@ -239,26 +230,7 @@ trait HasLikes
      */
     public function reactionSummary(?Model $viewer = null): ReactionSummary
     {
-        /** @var array<int, object{type: string, aggregate: int}> $rows */
-        $rows = $this->likes()
-            ->getQuery()
-            ->whereNull('deleted_at')
-            ->groupBy('type')
-            ->selectRaw('type, count(*) as aggregate')
-            ->get()
-            ->all();
-
-        $counts = [];
-
-        foreach ($rows as $row) {
-            $counts[(string) $row->type] = (int) $row->aggregate;
-        }
-
-        $total = array_sum($counts);
-        $top = $this->topReaction($counts);
-        $viewerReaction = $this->viewerReaction($viewer);
-
-        return new ReactionSummary($counts, $total, $top, $viewerReaction);
+        return app(LikeManager::class)->for($this)->summary($viewer);
     }
 
     /**
@@ -309,54 +281,6 @@ trait HasLikes
                 $sub->where($table.'.type', $resolvedType);
             }
         }, 'like_score');
-    }
-
-    /**
-     * @param  array<string, int>  $counts
-     */
-    private function topReaction(array $counts): ?string
-    {
-        if ($counts === []) {
-            return null;
-        }
-
-        $top = null;
-        $best = -1;
-
-        // Iterate in config order so ties resolve to the earliest configured type.
-        foreach (ReactionType::allowed() as $type) {
-            $count = $counts[$type] ?? 0;
-
-            if ($count > $best) {
-                $best = $count;
-                $top = $type;
-            }
-        }
-
-        // Fall back to whatever is present if no configured type matched.
-        if ($best <= 0) {
-            $top = array_key_first($counts);
-        }
-
-        return $top;
-    }
-
-    private function viewerReaction(?Model $viewer): ?string
-    {
-        $viewer = ActorResolver::resolve($viewer);
-
-        if (! $viewer instanceof Model) {
-            return null;
-        }
-
-        $type = $this->likes()
-            ->getQuery()
-            ->whereNull('deleted_at')
-            ->where('actor_id', $viewer->getKey())
-            ->where('actor_type', $viewer->getMorphClass())
-            ->value('type');
-
-        return is_string($type) ? $type : null;
     }
 
     private function likesTable(): string

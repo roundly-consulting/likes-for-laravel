@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace RoundlyConsulting\Likes\Testing;
 
 use Illuminate\Database\Eloquent\Model;
-use RoundlyConsulting\Likes\Actions\LikeAction;
-use RoundlyConsulting\Likes\Actions\ToggleLikeAction;
-use RoundlyConsulting\Likes\Actions\UnlikeAction;
-use RoundlyConsulting\Likes\DataTransferObjects\LikeData;
+use RoundlyConsulting\Likes\LikeManager;
+use RoundlyConsulting\Likes\PendingLike;
 
 /**
  * Opt-in testing ergonomics for host applications. Use it from a Pest/PHPUnit
@@ -34,23 +32,27 @@ trait InteractsWithLikes
 
     public function likeAs(Model $likeable, ?string $type = null, ?Model $actor = null): bool
     {
-        return app(LikeAction::class)->execute(
-            new LikeData($this->liker($actor), $likeable, $type),
-        );
+        return $this->likesAsLiker($actor, $type)->like($likeable);
     }
 
     public function unlikeAs(Model $likeable, ?string $type = null, ?Model $actor = null): bool
     {
-        return app(UnlikeAction::class)->execute(
-            new LikeData($this->liker($actor), $likeable, $type),
-        );
+        return $this->likesAsLiker($actor, $type)->unlike($likeable);
     }
 
     public function toggleAs(Model $likeable, ?string $type = null, ?Model $actor = null): bool
     {
-        return app(ToggleLikeAction::class)->execute(
-            new LikeData($this->liker($actor), $likeable, $type),
-        );
+        return $this->likesAsLiker($actor, $type)->toggle($likeable);
+    }
+
+    /**
+     * Through the manager, so a `Likes::fake()` in the same test records these calls too.
+     */
+    private function likesAsLiker(?Model $actor, ?string $type): PendingLike
+    {
+        $pending = app(LikeManager::class)->actor($this->liker($actor));
+
+        return $type === null ? $pending : $pending->as($type);
     }
 
     private function liker(?Model $actor): Model
