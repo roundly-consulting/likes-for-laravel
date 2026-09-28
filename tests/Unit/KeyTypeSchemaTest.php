@@ -108,8 +108,7 @@ it('renders each configured key type as a distinct real column type', function (
     config()->set('likes.key_type', $keyType);
     config()->set('likes.table', 'kt_likes');
 
-    // The composite index name is hardcoded (not table-derived), so free it by dropping the
-    // suite's default `likes` table before building the alternately-named one.
+    // Build the alternately-named table on its own; the unique index name derives from it.
     Schema::dropIfExists('likes');
     Schema::dropIfExists('kt_likes');
     $migration = require __DIR__.'/../../database/migrations/create_likes_table.php';

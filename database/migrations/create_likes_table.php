@@ -11,14 +11,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        $table = config('likes.table', 'likes');
+        /** @var string $name */
+        $name = config('likes.table', 'likes');
 
         // Silently falls back to bigint for an unrecognized value, so a typo in
         // the host's config never leaves the package unable to migrate.
         $keyType = KeyType::fromConfig('likes.key_type');
 
-        /** @var string $table */
-        Schema::create($table, function (Blueprint $table) use ($keyType): void {
+        Schema::create($name, function (Blueprint $table) use ($name, $keyType): void {
             $table->id();
             $table->morphKey('actor', $keyType, nullable: false);
             $table->morphKey('likeable', $keyType, nullable: false);
@@ -26,9 +26,12 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            $table->index(
+            // One row per actor + likeable + reaction type, soft-deleted rows included: a
+            // re-like restores the old row instead of inserting. The database enforces it, so
+            // a double-click or a retried request can never create a duplicate like.
+            $table->unique(
                 ['actor_type', 'actor_id', 'likeable_type', 'likeable_id', 'type'],
-                'likes_actor_likeable_type_index',
+                $name.'_actor_likeable_type_unique',
             );
         });
     }
