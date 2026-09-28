@@ -76,6 +76,7 @@ use RoundlyConsulting\Likes\Models\Like;
 return [
     'model' => Like::class,
     'table' => env('LIKES_TABLE', 'likes'),
+    'key_type' => env('LIKES_KEY_TYPE', 'bigint'),
     'reactions' => ['like'],
     'default_reaction' => env('LIKES_DEFAULT_REACTION', 'like'),
     'actor_resolver' => null,
@@ -91,7 +92,7 @@ return [
         'window' => '7 days',
         'recent_multiplier' => 3,
         'driver_expressions' => [
-            // 'pgsql' => 'SUM(...) / POW(EXTRACT(EPOCH FROM ...), 1.8)',
+            // 'pgsql' => 'SUM(1 / POWER(EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600 + 2, 1.8))',
         ],
     ],
 
@@ -107,6 +108,7 @@ return [
 |----------------------------------|---------------------------------|------------------|---------------------------|-----------------------------------------------------------------------------------------------|
 | `model`                          | `class-string`                  | `Like::class`    | —                         | Eloquent model used to persist each like. Swap in your own model (extending the package one).  |
 | `table`                          | `string`                        | `likes`          | `LIKES_TABLE`             | Database table that stores likes. Read by both the migration and the model.                    |
+| `key_type`                       | `string`                        | `bigint`         | `LIKES_KEY_TYPE`          | Key type of the polymorphic `actor_id` / `likeable_id` columns: `bigint`, `uuid` or `ulid`. Set it **before migrating** when your actors or likeables use UUID/ULID keys; unknown values fall back to `bigint`. |
 | `reactions`                      | `list<string>`                  | `['like']`       | —                         | Allowlist of accepted reaction types. Any type outside the list is rejected.                   |
 | `default_reaction`               | `string`                        | `like`           | `LIKES_DEFAULT_REACTION`  | Reaction used when none is given. Must be present in `reactions`.                              |
 | `actor_resolver`                 | `callable\|class-string\|null`  | `null`           | —                         | How the facade resolves the actor when none is supplied. `null` uses `auth()->user()`.        |
@@ -115,8 +117,8 @@ return [
 | `default_weight`                 | `int\|float`                    | `1`              | —                         | Weight applied to any reaction not listed in `weights`.                                        |
 | `trending.window`                | `string`                        | `7 days`         | —                         | `strtotime`-able recency window used by `orderByTrending()`.                                   |
 | `trending.recent_multiplier`     | `int\|float`                    | `3`              | —                         | How much likes inside the window outweigh all-time activity.                                   |
-| `trending.driver_expressions`    | `array<string, string>`         | `[]`             | —                         | Optional per-driver raw SQL trending overrides, applied verbatim for that connection.         |
-| `broadcast.enabled`              | `bool`                          | `false`          | `LIKES_BROADCAST`         | Opt-in broadcasting of `Liked`/`Unliked`/`ReactionChanged`. Off by default.                    |
+| `trending.driver_expressions`    | `array<string, string>`         | `[]`             | —                         | Optional raw SQL aggregate per database driver (`sqlite`, `mysql`, `pgsql`, …) that replaces the trending score for queries on a connection of that driver. Every `?` is bound to the window cut-off. |
+| `broadcast.enabled`              | `bool`                          | `false`          | `LIKES_BROADCAST`         | Opt-in broadcasting of `Liked`/`Unliked`/`ReactionChanged`. Off by default. Env strings such as `true`/`1`/`on` and `false`/`0`/`off` are understood. |
 | `broadcast.channel_prefix`       | `string`                        | `likes`          | —                         | Channel name prefix, e.g. `likes.posts.42`.                                                    |
 | `broadcast.channel_type`         | `string`                        | `private`        | —                         | Channel type: `private`, `public`, or `presence`.                                             |
 
@@ -221,9 +223,11 @@ app(LikeAction::class)->execute(new LikeData($user, $post, 'love'));
 
 `Likes::fake()` swaps the manager — for the facade **and** for injected `LikeManager`s — with a
 recording fake that **still performs** the operations, so `has()`, `for()` and your own
-queries see real rows. Every write is recorded, whichever way it was made: the facade, the
-`actor()`/`as()` builder, bulk calls (one entry per model), the `GivesLikes` trait and the
-`InteractsWithLikes` helpers.
+queries see real rows. Every completed write is recorded, whichever way it was made: the
+facade, the `actor()`/`as()` builder, bulk calls (one entry per model), the `GivesLikes` trait
+and the `InteractsWithLikes` helpers. A write the package refuses (an unknown reaction type,
+no resolvable actor) throws and is **not** recorded, so an assertion never passes over a write
+that did not happen.
 
 ```php
 use RoundlyConsulting\Likes\Facades\Likes;
@@ -241,7 +245,20 @@ $fake->assertLikedCount(1);
 $fake->assertLikedTimes($post, 1);
 $fake->assertUnliked($comment, by: $user);
 $fake->assertReacted($photo, 'love');
-$fake->assertNothingLiked();                  // …and assertNothingUnliked(), assertNothingReacted()
+```
+
+To assert that code performed no write of a kind, use `assertNothingLiked()`,
+`assertNothingUnliked()` or `assertNothingReacted()`:
+
+```php
+$fake = Likes::fake();
+
+$user->toggleLike($post);  // likes it
+$user->toggleLike($post);  // unlikes it again
+
+$fake->assertLikedCount(1);
+$fake->assertUnliked($post);
+$fake->assertNothingReacted();
 ```
 
 A toggle is recorded as the like or unlike it performed; `react()` is recorded as a reaction
@@ -286,7 +303,10 @@ $user->toggleLike($post);  // true on like, false on unlike
 ```
 
 Re-liking restores a previously removed like rather than creating a duplicate row, so each
-actor keeps a single record per likeable and reaction type.
+actor keeps a single record per likeable and reaction type. A unique index on the table
+enforces it, so this also holds under concurrency: a double-click, a second tab or a retried
+request can never create a second row, and only the request that actually changed something
+fires `Liked` / `Unliked`.
 
 ### Checking state and counting
 
@@ -295,7 +315,8 @@ $post->hasBeenLikedBy($user);  // bool
 $post->isLikedBy($user);       // bool — readable alias of hasBeenLikedBy()
 $user->hasLiked($post);        // bool
 
-$post->likesCount();           // int — uses an eager-loaded count when present, else counts live
+$post->likesCount();           // int — all reactions; uses an eager-loaded likes_count when present
+$post->likesCount('love');     // int — one type; uses an eager-loaded likes_love_count when present
 
 Likes::for($post)->likedBy($user);  // the same reads through the facade
 Likes::for($post)->count();
@@ -309,6 +330,15 @@ Post::orderByLikes()->get();                 // least-liked first
 Post::whereLikedBy($user)->get();            // posts the user liked
 Post::whereNotLikedBy($user)->get();         // posts the user has not liked
 Post::withLikesCount()->get();               // hydrate a `likes_count` attribute
+```
+
+Every scope takes an optional reaction type. A typed count lands in its own attribute, so it
+is never mistaken for the all-reactions total:
+
+```php
+Post::withLikesCount('love')->get();         // hydrate `likes_love_count`
+Post::orderByLikesDesc('love')->get();       // ordered by, and hydrating, `likes_love_count`
+Post::withLikesCount()->withLikesCount('love')->get();  // both attributes on one row
 ```
 
 ### Feed hydration (no N+1)
@@ -330,7 +360,9 @@ $posts = Post::query()
 @endforeach
 ```
 
-- `is_liked` is a truthy `0`/`1` flag; `liked_reaction` is the viewer's reaction type or `null`.
+- `is_liked` is a `0`/`1` flag; `liked_reaction` is the viewer's reaction type or `null`. When
+  the viewer left several reactions, `liked_reaction` is the one listed first in
+  `config('likes.reactions')`.
 - The actor defaults to the resolved auth actor; pass one explicitly with
   `withLikedState($actor)` and narrow to a reaction with `withLikedState($actor, 'love')`.
 - For guests (no resolvable actor) it renders `is_liked = 0` / `liked_reaction = null` without
@@ -352,10 +384,28 @@ score equals the raw like count. Give some reactions more pull:
 
 `orderByTrending()` boosts likes inside `config('likes.trending.window')` by
 `recent_multiplier` over all-time activity. Both scopes accept a direction and an optional
-reaction type, compose with other scopes, and use portable SQL (SQLite/MySQL/Postgres). Hosts
-that want an exact per-driver decay curve can supply raw SQL via
-`config('likes.trending.driver_expressions')` (applied verbatim; the portable hybrid is used
-otherwise).
+reaction type, compose with other scopes, and use portable SQL (SQLite/MySQL/Postgres).
+
+Hosts that want an exact decay curve can replace the trending score per database driver with a
+raw SQL aggregate over the likes rows. It is used verbatim for queries on a connection of that
+driver (the portable hybrid is used for any other), and every `?` in it is bound to the window
+cut-off (now minus `trending.window`):
+
+```php
+'trending' => [
+    'window' => '7 days',
+    'recent_multiplier' => 3,
+    'driver_expressions' => [
+        // Gravity: each like decays with its age in hours.
+        'pgsql' => 'SUM(1 / POWER(EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600 + 2, 1.8))',
+        // Recent likes count 10x, bound to the window cut-off.
+        'sqlite' => 'SUM(CASE WHEN created_at >= ? THEN 10 ELSE 1 END)',
+    ],
+],
+```
+
+The expression is host configuration, never user input — it is placed into the query as
+written.
 
 ```php
 Post::orderByLikeScore('asc')->get();
@@ -372,14 +422,14 @@ $summary->total;            // int — sum of all reactions
 $summary->countFor('love'); // int
 $summary->has('love');      // bool
 $summary->top;              // ?string — most-used type (config order breaks ties), null if none
-$summary->viewerReaction;   // ?string — the viewer's active reaction, null without one
+$summary->viewerReaction;   // ?string — the viewer's active reaction (the first configured one if several), null without one
 $summary->toArray();        // ['total' => .., 'counts' => [...], 'top' => .., 'viewer' => ..]
 ```
 
 ### Switch a reaction in place
 
-`react()` keeps **one active reaction per actor + likeable**: reacting with a new type updates
-the existing row instead of adding a second one.
+`react()` keeps **one active reaction per actor + likeable**: reacting with a new type switches
+the existing reaction instead of adding a second one.
 
 ```php
 $user->react($post, 'love');                  // trait
@@ -389,12 +439,16 @@ Likes::actor($user)->as('love')->react($post); // facade
 
 - No prior reaction → behaves like `like()` (fires `Liked`).
 - Same type → no-op, returns `true`.
-- Different type → switches the row in place and fires **only** `ReactionChanged(from, to)`
+- Different type → switches the reaction and fires **only** `ReactionChanged(from, to)`
   (never `Liked`/`Unliked`), so analytics and notifications see a clean
-  transition.
+  transition. The row is switched in place, or — when the actor used the new type before —
+  that type's own removed row is restored and the old one removed.
 
 Keep using `like('love')` + `like('wow')` when you want **multiple** simultaneous reactions
-per actor; use `react()` for the common **single**-reaction case.
+per actor; use `react()` for the common **single**-reaction case. Calling `react()` on an actor
+that holds several reactions collapses them to one: the requested type stays (or the newest
+reaction switches to it, firing `ReactionChanged`), and every other active reaction is removed,
+firing `Unliked` for each.
 
 ### What an actor liked (reverse relation)
 
@@ -405,7 +459,10 @@ $user->likedItems(Post::class)->with('author')->paginate();  // real relation �
 $user->likesOf(Post::class);                         // the underlying MorphToMany relation
 ```
 
-Soft-deleted (unliked) items drop out automatically and reappear on a re-like.
+Each item comes back **once**, however many reactions the actor left on it, and
+`paginate()->total()` counts items, not reactions. The pivot's `type` is the actor's earliest
+active reaction on the item (or the requested type when you filter by one). Soft-deleted
+(unliked) items drop out automatically and reappear on a re-like.
 
 ### API surface
 
@@ -489,6 +546,9 @@ class NotifyAuthor
 | `Unliked`         | a like is removed             | `actor`, `likeable`, `type`, `like`              |
 | `ReactionChanged` | a reaction is switched (`react()`) | `actor`, `likeable`, `from`, `to`, `like`   |
 
+`react()` also fires `Unliked` for each extra reaction it removes when collapsing several into
+one.
+
 ### Broadcasting (opt-in, default off)
 
 `Liked`, `Unliked`, and `ReactionChanged` can broadcast over Laravel Echo. Broadcasting is
@@ -504,7 +564,20 @@ class NotifyAuthor
 
 When enabled, each event broadcasts on `{channel_prefix}.{morph}.{id}` (e.g.
 `likes.posts.42`) with stable names `like.created`, `like.removed`, and `reaction.changed`.
-The events keep dispatching as plain events for your listeners regardless of this setting.
+The payload carries ids and the reaction only — never the actor or likeable models, so no
+attribute of your users ever reaches a channel subscriber:
+
+```php
+// like.created / like.removed
+['like_id' => 7, 'actor_type' => 'App\Models\User', 'actor_id' => 1,
+ 'likeable_type' => 'App\Models\Post', 'likeable_id' => 42, 'type' => 'love']
+
+// reaction.changed — `from` / `to` instead of `type`
+[..., 'from' => 'like', 'to' => 'love']
+```
+
+Load anything else you need client-side by id. The events keep dispatching as plain events for
+your listeners regardless of this setting.
 
 #### Optional: a persisted counter column
 
