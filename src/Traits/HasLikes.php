@@ -15,6 +15,7 @@ use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Support\ActorResolver;
 use RoundlyConsulting\Likes\Support\HostSql;
 use RoundlyConsulting\Likes\Support\LikeModel;
+use RoundlyConsulting\Likes\Support\LikesConfig;
 use RoundlyConsulting\Likes\Support\ReactionType;
 use RoundlyConsulting\Likes\Support\TrendingScore;
 
@@ -298,9 +299,7 @@ trait HasLikes
 
     private function likesTable(): string
     {
-        $table = config('likes.table', 'likes');
-
-        return is_string($table) ? $table : 'likes';
+        return LikesConfig::table();
     }
 
     /**

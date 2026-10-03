@@ -109,7 +109,8 @@ return [
     | Per-reaction weights used by the orderByLikeScore() scope. Map a reaction
     | type to a numeric weight to make some reactions count more than others.
     | Leave empty so every reaction weighs the same and the score equals the
-    | raw like count.
+    | raw like count. Every weight must be an int or a float; anything else
+    | throws an InvalidConfigurationException rather than being ignored.
     |
     | @var array<string, int|float>
     */
@@ -141,7 +142,8 @@ return [
     | MySQL and Postgres. For an exact per-driver decay curve, supply a raw SQL
     | aggregate per driver in "driver_expressions" (advanced; used verbatim for
     | queries on a connection of that driver). Every "?" in it is bound to the
-    | window cut-off (now minus "window").
+    | window cut-off (now minus "window"). A non-string window, a non-numeric
+    | multiplier or a blank expression throws an InvalidConfigurationException.
     |
     | @var array{window: string, recent_multiplier: int|float, driver_expressions: array<string, string>}
     */
@@ -170,6 +172,6 @@ return [
     'broadcast' => [
         'enabled' => env('LIKES_BROADCAST', false),
         'channel_prefix' => 'likes',
-        'channel_type' => 'private',
+        'channel_type' => 'private', // 'private' | 'public' | 'presence' (anything else throws)
     ],
 ];

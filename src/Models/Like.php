@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use RoundlyConsulting\Likes\Database\Factories\LikeFactory;
+use RoundlyConsulting\Likes\Support\LikesConfig;
 
 /**
  * @property int $id
@@ -49,9 +50,7 @@ class Like extends Model
             return $this->table;
         }
 
-        $table = config('likes.table', 'likes');
-
-        return is_string($table) && $table !== '' ? $table : 'likes';
+        return LikesConfig::table();
     }
 
     /**

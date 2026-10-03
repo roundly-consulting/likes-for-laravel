@@ -12,6 +12,7 @@ use RoundlyConsulting\Likes\LikeManager;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\PendingLike;
 use RoundlyConsulting\Likes\Support\LikeModel;
+use RoundlyConsulting\Likes\Support\LikesConfig;
 use RoundlyConsulting\Likes\Support\ReactionType;
 
 /**
@@ -165,13 +166,12 @@ trait GivesLikes
      */
     private function reactionsOf(string $likeableClass): MorphToMany
     {
-        $table = config('likes.table', 'likes');
 
         /** @var MorphToMany<Model, $this> $relation */
         $relation = $this->morphedByMany(
             $likeableClass,
             'likeable',
-            is_string($table) ? $table : 'likes',
+            LikesConfig::table(),
             'actor_id',
             'likeable_id',
         )

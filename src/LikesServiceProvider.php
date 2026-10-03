@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Likes;
 
+use Closure;
 use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Likes\Facades\Likes;
 use RoundlyConsulting\Likes\Support\ReactionType;
 use RoundlyConsulting\PackageToolkit\Concerns\RegistersBladeDirectives;
 use RoundlyConsulting\PackageToolkit\Concerns\RegistersBlueprintMacros;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 use RoundlyConsulting\PackageToolkit\Package;
 use RoundlyConsulting\PackageToolkit\PackageServiceProvider;
 use RoundlyConsulting\PackageToolkit\Support\Config;
@@ -26,8 +28,8 @@ final class LikesServiceProvider extends PackageServiceProvider
             ->hasMigrations()
             ->hasFacadeAlias(Likes::class, 'likes.facade_alias')
             ->contributesToAbout(static fn (): array => [
-                'Reactions' => implode(', ', ReactionType::allowed()),
-                'Default reaction' => ReactionType::default(),
+                'Reactions' => self::orInvalid(static fn (): string => implode(', ', ReactionType::allowed())),
+                'Default reaction' => self::orInvalid(ReactionType::default(...)),
                 'Broadcasting' => Config::boolean('likes.broadcast.enabled') ? 'ENABLED' : 'OFF',
             ]);
     }
@@ -54,5 +56,20 @@ final class LikesServiceProvider extends PackageServiceProvider
                 ? Likes::actor($actor)->as($type)->has($likeable)
                 : Likes::as($type)->has($likeable);
         });
+    }
+
+    /**
+     * A strict read rendered for `about`, or `INVALID` when the setting is broken — so
+     * `php artisan about` still works on a misconfigured host while every real read throws.
+     *
+     * @param  Closure(): string  $read
+     */
+    private static function orInvalid(Closure $read): string
+    {
+        try {
+            return $read();
+        } catch (InvalidConfigurationException) {
+            return 'INVALID';
+        }
     }
 }

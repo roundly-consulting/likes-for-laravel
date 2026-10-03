@@ -111,11 +111,8 @@ final class TrendingScore
 
     public static function since(): string
     {
-        $window = config('likes.trending.window', '7 days');
-        $window = is_string($window) && $window !== '' ? $window : '7 days';
-
         return CarbonImmutable::now()
-            ->sub($window)
+            ->sub(LikesConfig::trendingWindow())
             ->toDateTimeString();
     }
 
@@ -164,48 +161,22 @@ final class TrendingScore
      */
     private static function weights(): array
     {
-        $weights = config('likes.weights', []);
-
-        if (! is_array($weights)) {
-            return [];
-        }
-
-        $resolved = [];
-
-        foreach ($weights as $type => $weight) {
-            if (is_string($type) && (is_int($weight) || is_float($weight))) {
-                $resolved[$type] = $weight;
-            }
-        }
-
-        return $resolved;
+        return LikesConfig::weights();
     }
 
     private static function defaultWeight(): int|float
     {
-        $default = config('likes.default_weight', 1);
-
-        return is_int($default) || is_float($default) ? $default : 1;
+        return LikesConfig::defaultWeight();
     }
 
     private static function recentMultiplier(): int|float
     {
-        $multiplier = config('likes.trending.recent_multiplier', 3);
-
-        return is_int($multiplier) || is_float($multiplier) ? $multiplier : 3;
+        return LikesConfig::recentMultiplier();
     }
 
     private static function driverOverride(string $driver): ?string
     {
-        $expressions = config('likes.trending.driver_expressions', []);
-
-        if (! is_array($expressions)) {
-            return null;
-        }
-
-        $override = $expressions[$driver] ?? null;
-
-        return is_string($override) && trim($override) !== '' ? $override : null;
+        return LikesConfig::driverExpression($driver);
     }
 
     private static function likesDriver(): string

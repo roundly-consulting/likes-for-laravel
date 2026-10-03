@@ -19,7 +19,7 @@ final class ActorResolver
             return $actor;
         }
 
-        $resolver = config('likes.actor_resolver');
+        $resolver = LikesConfig::actorResolver();
 
         if ($resolver === null) {
             $user = auth()->user();
@@ -27,16 +27,8 @@ final class ActorResolver
             return $user instanceof Model ? $user : null;
         }
 
-        if (is_string($resolver) && class_exists($resolver)) {
-            $resolver = app($resolver);
-        }
+        $result = $resolver();
 
-        if (is_callable($resolver)) {
-            $result = $resolver();
-
-            return $result instanceof Model ? $result : null;
-        }
-
-        return null;
+        return $result instanceof Model ? $result : null;
     }
 }

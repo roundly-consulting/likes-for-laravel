@@ -111,7 +111,7 @@ return [
 | `key_type`                       | `string`                        | `bigint`         | `LIKES_KEY_TYPE`          | Key type of the polymorphic `actor_id` / `likeable_id` columns: `bigint`, `uuid` or `ulid`. Set it **before migrating** when your actors or likeables use UUID/ULID keys; any other value throws `InvalidConfigurationException`. |
 | `reactions`                      | `list<string>`                  | `['like']`       | —                         | Allowlist of accepted reaction types. Any type outside the list is rejected.                   |
 | `default_reaction`               | `string`                        | `like`           | `LIKES_DEFAULT_REACTION`  | Reaction used when none is given. Must be present in `reactions`.                              |
-| `actor_resolver`                 | `callable\|class-string\|null`  | `null`           | —                         | How the facade resolves the actor when none is supplied. `null` uses `auth()->user()`.        |
+| `actor_resolver`                 | `callable\|class-string\|null`  | `null`           | —                         | How the facade resolves the actor when none is supplied. `null` uses `auth()->user()`; a value that does not resolve to a callable throws. |
 | `facade_alias`                   | `string\|null`                  | `Likes`          | `LIKES_FACADE_ALIAS`      | Global class alias for the `Likes` facade. Set `null` to skip aliasing.                        |
 | `weights`                        | `array<string, int\|float>`     | `[]`             | —                         | Per-reaction weights for `orderByLikeScore()`. Empty means the score equals the raw count.     |
 | `default_weight`                 | `int\|float`                    | `1`              | —                         | Weight applied to any reaction not listed in `weights`.                                        |
@@ -120,7 +120,14 @@ return [
 | `trending.driver_expressions`    | `array<string, string>`         | `[]`             | —                         | Optional raw SQL aggregate per database driver (`sqlite`, `mysql`, `pgsql`, …) that replaces the trending score for queries on a connection of that driver. Every `?` is bound to the window cut-off. |
 | `broadcast.enabled`              | `bool`                          | `false`          | `LIKES_BROADCAST`         | Opt-in broadcasting of `Liked`/`Unliked`/`ReactionChanged`. Off by default. Env strings such as `true`/`1`/`on` and `false`/`0`/`off` are understood; anything else throws `InvalidConfigurationException`. |
 | `broadcast.channel_prefix`       | `string`                        | `likes`          | —                         | Channel name prefix, e.g. `likes.posts.42`.                                                    |
-| `broadcast.channel_type`         | `string`                        | `private`        | —                         | Channel type: `private`, `public`, or `presence`.                                             |
+| `broadcast.channel_type`         | `string`                        | `private`        | —                         | Channel type: `private`, `public`, or `presence`; anything else throws.                       |
+
+A default applies only when a key is absent (unset or `null`). A value that is present must fit:
+a blank or non-string `table`, `default_reaction`, `trending.window` or `broadcast.channel_prefix`,
+a `reactions` list that is empty or holds a non-string, a non-numeric weight, multiplier or
+default weight, a blank driver expression, or a `broadcast.channel_type` typo (it no longer
+reads as private) throws `InvalidConfigurationException` instead of falling back or being
+dropped. `php artisan about` renders a broken reaction setting as `INVALID`.
 
 ## Usage
 

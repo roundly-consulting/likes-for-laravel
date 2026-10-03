@@ -5,6 +5,7 @@ declare(strict_types=1);
 use RoundlyConsulting\Likes\Support\ActorResolver;
 use RoundlyConsulting\Likes\Tests\Models\ActorTestModel;
 use RoundlyConsulting\Likes\Tests\Models\CurrentActorResolver;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 
 it('returns the explicit actor when given', function (): void {
     $actor = ActorTestModel::query()->create();
@@ -44,11 +45,15 @@ it('resolves through a callable resolver', function (): void {
     expect(ActorResolver::resolve())->toBe($actor);
 });
 
-it('returns null when the resolver is not callable', function (): void {
-    config()->set('likes.actor_resolver', 'not-a-class');
+it('refuses a resolver that is not callable instead of resolving no actor (strict config)', function (mixed $resolver): void {
+    config()->set('likes.actor_resolver', $resolver);
 
-    expect(ActorResolver::resolve())->toBeNull();
-});
+    expect(fn () => ActorResolver::resolve())->toThrow(InvalidConfigurationException::class, 'likes.actor_resolver');
+})->with([
+    'unknown class' => ['not-a-class'],
+    'not invokable' => [ActorTestModel::class],
+    'a number' => [42],
+]);
 
 it('returns null when the callable resolver yields a non-model', function (): void {
     config()->set('likes.actor_resolver', fn (): ?string => 'nope');

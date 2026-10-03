@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Schema;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Tests\Models\ActorTestModel;
 use RoundlyConsulting\Likes\Tests\Models\PostTestModel;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 
 it('ships sensible defaults', function (): void {
     expect(config('likes.table'))->toBe('likes')
@@ -35,8 +36,19 @@ it('keeps the migration in sync with the configured table name', function (): vo
     expect(Schema::hasColumn('likes', 'type'))->toBeTrue();
 });
 
-it('falls back to a single like reaction when misconfigured', function (): void {
+it('refuses a misconfigured reaction list instead of falling back to like (strict config)', function (): void {
     config()->set('likes.reactions', 'not-an-array');
+    config()->set('likes.default_reaction', null);
+
+    $actor = ActorTestModel::create();
+    $post = PostTestModel::create();
+
+    expect(fn () => $actor->like($post))->toThrow(InvalidConfigurationException::class, 'likes.reactions')
+        ->and(Like::query()->count())->toBe(0);
+});
+
+it('uses a single like reaction when the reactions are absent (strict config)', function (): void {
+    config()->set('likes.reactions', null);
     config()->set('likes.default_reaction', null);
 
     $actor = ActorTestModel::create();

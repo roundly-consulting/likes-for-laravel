@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use RoundlyConsulting\Likes\Support\TrendingScore;
 use RoundlyConsulting\Likes\Tests\Models\CustomConnectionLike;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 use RoundlyConsulting\Testing\Database\DriverMatrix;
 
 it('builds a count expression with no weights', function (): void {
@@ -76,34 +77,47 @@ it('builds a weighted portable trending expression', function (): void {
         ->and($trending['bindings'])->toContain('love');
 });
 
-it('ignores non-numeric and non-string weight entries', function (): void {
-    config()->set('likes.weights', ['love' => 'heavy', 7 => 3]);
+it('refuses a junk weight entry instead of ignoring it (strict config)', function (mixed $weights): void {
+    config()->set('likes.weights', $weights);
 
-    $score = TrendingScore::weightedSum();
+    expect(fn () => TrendingScore::weightedSum())->toThrow(InvalidConfigurationException::class, 'likes.weights');
+})->with([
+    'a non-numeric weight' => [['love' => 'heavy']],
+    'a non-string type' => [[7 => 3]],
+    'not an array' => ['not-an-array'],
+]);
 
-    expect($score['expression'])->toBe('COUNT(*)');
-});
+it('refuses config values of the wrong type instead of falling back (strict config)', function (string $key, mixed $value, Closure $read): void {
+    // A weight map, so the default weight is part of the expression.
+    config()->set('likes.weights', ['love' => 4]);
+    config()->set($key, $value);
 
-it('falls back when config values have the wrong type', function (): void {
-    config()->set('likes.weights', 'not-an-array');
-    config()->set('likes.default_weight', 'x');
-    config()->set('likes.trending.recent_multiplier', 'y');
-    config()->set('likes.trending.window', 123);
-    config()->set('likes.trending.driver_expressions', 'nope');
+    expect($read)->toThrow(InvalidConfigurationException::class, $key);
+})->with([
+    'default weight' => ['likes.default_weight', 'x', fn () => TrendingScore::weightedSum()],
+    'recent multiplier' => ['likes.trending.recent_multiplier', 'y', fn () => TrendingScore::portableTrending()],
+    'window not a string' => ['likes.trending.window', 123, fn () => TrendingScore::since()],
+    'window blank' => ['likes.trending.window', ' ', fn () => TrendingScore::since()],
+    'driver expressions not an array' => ['likes.trending.driver_expressions', 'nope', fn () => TrendingScore::trending()],
+]);
 
-    $score = TrendingScore::weightedSum();
-    $trending = TrendingScore::trending();
+it('reads absent trending settings as their defaults (strict config)', function (): void {
+    config()->set('likes.weights', null);
+    config()->set('likes.default_weight', null);
+    config()->set('likes.trending.recent_multiplier', null);
+    config()->set('likes.trending.window', null);
+    config()->set('likes.trending.driver_expressions', null);
 
-    expect($score['expression'])->toBe('COUNT(*)')
-        ->and($trending['bindings'][1] ?? null)->toBe(3)
+    expect(TrendingScore::weightedSum()['expression'])->toBe('COUNT(*)')
+        ->and(TrendingScore::portableTrending()['bindings'][1] ?? null)->toBe(3)
         ->and(TrendingScore::since())->toBeString();
 });
 
-it('ignores a non-string driver override', function (): void {
+it('refuses a non-string driver override (strict config)', function (): void {
     // Keyed by the live driver so the non-string branch is really reached on every leg.
     config()->set('likes.trending.driver_expressions', [DriverMatrix::driver() => 123]);
 
-    expect(TrendingScore::trending()['expression'])->toContain('created_at >= ?');
+    expect(fn () => TrendingScore::trending())->toThrow(InvalidConfigurationException::class, 'likes.trending.driver_expressions');
 });
 
 it('reads the driver from the likes model connection, not the default connection', function (): void {
@@ -136,8 +150,8 @@ it('takes an explicit driver', function (): void {
         ->and(TrendingScore::trending('sqlsrv')['expression'])->toContain('created_at >= ?');
 });
 
-it('ignores an empty override', function (): void {
+it('refuses an empty override (strict config)', function (): void {
     config()->set('likes.trending.driver_expressions', ['pgsql' => '']);
 
-    expect(TrendingScore::trending('pgsql')['expression'])->toContain('created_at >= ?');
+    expect(fn () => TrendingScore::trending('pgsql'))->toThrow(InvalidConfigurationException::class, 'likes.trending.driver_expressions.pgsql');
 });

@@ -14,6 +14,7 @@ use RoundlyConsulting\Likes\Actions\UnlikeManyAction;
 use RoundlyConsulting\Likes\DataTransferObjects\LikeData;
 use RoundlyConsulting\Likes\Exceptions\NoAuthenticatedActorException;
 use RoundlyConsulting\Likes\Support\LikeModel;
+use RoundlyConsulting\Likes\Support\LikesConfig;
 
 /**
  * Immutable, fluent builder produced by LikeManager::actor()/as().
@@ -110,7 +111,7 @@ readonly class PendingLike
 
     private function resolveFromConfig(): ?Model
     {
-        $resolver = config('likes.actor_resolver');
+        $resolver = LikesConfig::actorResolver();
 
         if ($resolver === null) {
             $user = auth()->user();
@@ -118,17 +119,8 @@ readonly class PendingLike
             return $user instanceof Model ? $user : null;
         }
 
-        if (is_string($resolver) && class_exists($resolver)) {
-            /** @var callable $resolver */
-            $resolver = app($resolver);
-        }
+        $result = $resolver();
 
-        if (is_callable($resolver)) {
-            $result = $resolver();
-
-            return $result instanceof Model ? $result : null;
-        }
-
-        return null;
+        return $result instanceof Model ? $result : null;
     }
 }

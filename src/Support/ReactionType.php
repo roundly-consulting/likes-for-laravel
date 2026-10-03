@@ -14,9 +14,7 @@ final class ReactionType
 {
     public static function default(): string
     {
-        $default = config('likes.default_reaction', 'like');
-
-        return is_string($default) ? $default : 'like';
+        return LikesConfig::defaultReaction();
     }
 
     /**
@@ -24,13 +22,7 @@ final class ReactionType
      */
     public static function allowed(): array
     {
-        $reactions = config('likes.reactions', ['like']);
-
-        if (! is_array($reactions)) {
-            return ['like'];
-        }
-
-        return array_values(array_filter($reactions, 'is_string'));
+        return LikesConfig::reactions();
     }
 
     /**

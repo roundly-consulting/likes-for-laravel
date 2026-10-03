@@ -5,14 +5,14 @@ declare(strict_types=1);
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use RoundlyConsulting\Likes\Support\LikesConfig;
 use RoundlyConsulting\PackageToolkit\Enums\KeyType;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        /** @var string $name */
-        $name = config('likes.table', 'likes');
+        $name = LikesConfig::table();
 
         // Throws for an unrecognized value, so a typo in the host's config fails
         // the migration instead of quietly building bigint columns.

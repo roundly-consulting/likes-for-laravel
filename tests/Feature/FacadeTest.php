@@ -11,6 +11,7 @@ use RoundlyConsulting\Likes\Tests\Models\ActorTestModel;
 use RoundlyConsulting\Likes\Tests\Models\CommentTestModel;
 use RoundlyConsulting\Likes\Tests\Models\CurrentActorResolver;
 use RoundlyConsulting\Likes\Tests\Models\PostTestModel;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 
 beforeEach(function (): void {
     $this->actor = ActorTestModel::create();
@@ -69,11 +70,11 @@ it('resolves an invokable class-string resolver', function (): void {
         ->and(Like::query()->count())->toBe(1);
 });
 
-it('throws when a non-callable resolver yields no actor', function (): void {
+it('refuses a non-callable resolver instead of reporting no actor (strict config)', function (): void {
     config()->set('likes.actor_resolver', 'not-a-callable-or-class');
 
     Likes::like($this->post);
-})->throws(NoAuthenticatedActorException::class);
+})->throws(InvalidConfigurationException::class, 'likes.actor_resolver');
 
 it('unlikes via the manager as the authenticated actor', function (): void {
     $this->actingAs($this->actor);

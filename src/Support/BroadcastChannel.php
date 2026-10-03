@@ -12,14 +12,13 @@ use Illuminate\Support\Str;
 
 /**
  * Builds the broadcast channel for a likeable from the package config, honouring
- * the configured prefix and channel type (private/public/presence).
+ * the configured prefix and channel type (private/public/presence; anything else throws).
  */
 final class BroadcastChannel
 {
     public static function for(Model $likeable): Channel
     {
-        $prefix = config('likes.broadcast.channel_prefix', 'likes');
-        $prefix = is_string($prefix) ? $prefix : 'likes';
+        $prefix = LikesConfig::channelPrefix();
 
         $segment = Str::of($likeable->getMorphClass())
             ->afterLast('\\')
@@ -29,9 +28,7 @@ final class BroadcastChannel
 
         $name = "{$prefix}.{$segment}.{$likeable->getKey()}";
 
-        $type = config('likes.broadcast.channel_type', 'private');
-
-        return match (is_string($type) ? $type : 'private') {
+        return match (LikesConfig::channelType()) {
             'public' => new Channel($name),
             'presence' => new PresenceChannel($name),
             default => new PrivateChannel($name),
