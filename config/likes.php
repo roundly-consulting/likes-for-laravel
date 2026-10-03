@@ -94,8 +94,10 @@ return [
     |--------------------------------------------------------------------------
     |
     | The class alias registered for the Likes facade so it can be referenced
-    | as a short global (e.g. \Likes::like($post)). Set to null to skip
-    | registering an alias and reference the facade by its full class name.
+    | as a short global (e.g. \Likes::like($post)). Set to null or false
+    | (LIKES_FACADE_ALIAS=false, also 0/off/no) to skip registering an alias and
+    | reference the facade by its full class name. A blank value is not set, so
+    | the "Likes" alias is registered.
     |
     */
 
@@ -143,7 +145,8 @@ return [
     | aggregate per driver in "driver_expressions" (advanced; used verbatim for
     | queries on a connection of that driver). Every "?" in it is bound to the
     | window cut-off (now minus "window"). A non-string window, a non-numeric
-    | multiplier or a blank expression throws an InvalidConfigurationException.
+    | multiplier or a non-string expression throws an
+    | InvalidConfigurationException; a blank one is not set (the default applies).
     |
     | @var array{window: string, recent_multiplier: int|float, driver_expressions: array<string, string>}
     */

@@ -10,10 +10,11 @@ use RoundlyConsulting\PackageToolkit\Support\Config;
 /**
  * Strict readers for the package's non-boolean settings.
  *
- * A default applies only when the key is absent (null). Anything present but unusable — a
- * `pubilc` channel type, a blank table name, a non-numeric weight, an actor resolver that is not
- * callable — throws {@see InvalidConfigurationException} naming the key, instead of quietly
- * falling back or being dropped.
+ * A setting that is not set — absent, null, or blank like a host's `KEY=` — takes its default
+ * (or, for an optional setting such as the actor resolver, none). Anything else unusable — a
+ * `pubilc` channel type, a non-string table name, a non-numeric weight, an actor resolver that
+ * is not callable — throws {@see InvalidConfigurationException} naming the key, instead of
+ * quietly falling back or being dropped.
  *
  * @internal
  */
@@ -48,7 +49,7 @@ final class LikesConfig
     public static function reactions(): array
     {
         $key = 'likes.reactions';
-        $reactions = config($key) ?? ['like'];
+        $reactions = self::unlessBlank(config($key)) ?? ['like'];
 
         if (! is_array($reactions) || $reactions === [] || ! array_is_list($reactions)) {
             throw self::invalid($key, 'a non-empty list of reaction types', $reactions);
@@ -75,7 +76,7 @@ final class LikesConfig
     public static function weights(): array
     {
         $key = 'likes.weights';
-        $weights = config($key) ?? [];
+        $weights = self::unlessBlank(config($key)) ?? [];
 
         if (! is_array($weights)) {
             throw self::invalid($key, 'a map of reaction type => number', $weights);
@@ -114,19 +115,19 @@ final class LikesConfig
     public static function driverExpression(string $driver): ?string
     {
         $key = 'likes.trending.driver_expressions';
-        $expressions = config($key) ?? [];
+        $expressions = self::unlessBlank(config($key)) ?? [];
 
         if (! is_array($expressions)) {
             throw self::invalid($key, 'a map of driver => SQL expression', $expressions);
         }
 
-        $expression = $expressions[$driver] ?? null;
+        $expression = self::unlessBlank($expressions[$driver] ?? null);
 
         if ($expression === null) {
             return null;
         }
 
-        if (! is_string($expression) || trim($expression) === '') {
+        if (! is_string($expression)) {
             throw InvalidConfigurationException::notAString($key.'.'.$driver, $expression);
         }
 
@@ -141,7 +142,7 @@ final class LikesConfig
     public static function actorResolver(): ?callable
     {
         $key = 'likes.actor_resolver';
-        $resolver = config($key);
+        $resolver = self::unlessBlank(config($key));
 
         if ($resolver === null) {
             return null;
@@ -158,7 +159,7 @@ final class LikesConfig
 
     private static function number(string $key, int|float $default): int|float
     {
-        $value = config($key) ?? $default;
+        $value = self::unlessBlank(config($key)) ?? $default;
 
         if (! is_int($value) && ! is_float($value)) {
             throw self::invalid($key, 'a number', $value);
@@ -169,17 +170,26 @@ final class LikesConfig
 
     private static function string(string $key, string $default): string
     {
-        $value = config($key);
+        $value = self::unlessBlank(config($key));
 
         if ($value === null) {
             return $default;
         }
 
-        if (! is_string($value) || trim($value) === '') {
+        if (! is_string($value)) {
             throw InvalidConfigurationException::notAString($key, $value);
         }
 
         return $value;
+    }
+
+    /**
+     * A raw config value, with a blank string (`''` or whitespace — a host's `KEY=`) read as
+     * null: not set, exactly like an absent key.
+     */
+    private static function unlessBlank(mixed $value): mixed
+    {
+        return is_string($value) && trim($value) === '' ? null : $value;
     }
 
     private static function invalid(string $key, string $expectation, mixed $value): InvalidConfigurationException

@@ -97,7 +97,7 @@ it('refuses config values of the wrong type instead of falling back (strict conf
     'default weight' => ['likes.default_weight', 'x', fn () => TrendingScore::weightedSum()],
     'recent multiplier' => ['likes.trending.recent_multiplier', 'y', fn () => TrendingScore::portableTrending()],
     'window not a string' => ['likes.trending.window', 123, fn () => TrendingScore::since()],
-    'window blank' => ['likes.trending.window', ' ', fn () => TrendingScore::since()],
+    'window an array' => ['likes.trending.window', ['7 days'], fn () => TrendingScore::since()],
     'driver expressions not an array' => ['likes.trending.driver_expressions', 'nope', fn () => TrendingScore::trending()],
 ]);
 
@@ -150,8 +150,14 @@ it('takes an explicit driver', function (): void {
         ->and(TrendingScore::trending('sqlsrv')['expression'])->toContain('created_at >= ?');
 });
 
-it('refuses an empty override (strict config)', function (): void {
-    config()->set('likes.trending.driver_expressions', ['pgsql' => '']);
+it('refuses a non-string override (strict config)', function (): void {
+    config()->set('likes.trending.driver_expressions', ['pgsql' => 5]);
 
     expect(fn () => TrendingScore::trending('pgsql'))->toThrow(InvalidConfigurationException::class, 'likes.trending.driver_expressions.pgsql');
 });
+
+it('reads a blank override as not set, so the package expression applies (strict config)', function (mixed $expressions): void {
+    config()->set('likes.trending.driver_expressions', $expressions);
+
+    expect(TrendingScore::trending('pgsql')['expression'])->toContain('created_at >= ?');
+})->with(['blank entry' => [['pgsql' => '']], 'whitespace entry' => [['pgsql' => '  ']], 'blank map' => ['']]);

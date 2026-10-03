@@ -58,17 +58,17 @@ it('honours a renamed facade alias', function (): void {
     expect(reregisterLikes())->toBe(['Reactions' => Likes::class]);
 });
 
-it('skips registering a facade alias when none is configured', function (): void {
-    config()->set('likes.facade_alias', null);
+it('skips registering a facade alias when it is null or a false spelling', function (mixed $value): void {
+    config()->set('likes.facade_alias', $value);
 
     expect(reregisterLikes())->toBe([]);
-});
+})->with(['null' => [null], 'false' => [false], 'zero' => ['0'], 'off' => ['off'], 'no' => ['no'], 'false word' => ['false']]);
 
-it('skips registering a facade alias configured as an empty string', function (): void {
-    config()->set('likes.facade_alias', '');
+it('registers the default facade alias for a blank value, which is not set', function (string $blank): void {
+    config()->set('likes.facade_alias', $blank);
 
-    expect(reregisterLikes())->toBe([]);
-});
+    expect(reregisterLikes())->toBe(['Likes' => Likes::class]);
+})->with(['empty' => [''], 'whitespace' => [' ']]);
 
 it('contributes a section to the about command', function (): void {
     config()->set('likes.reactions', ['like', 'love']);

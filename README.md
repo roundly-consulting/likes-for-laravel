@@ -112,7 +112,7 @@ return [
 | `reactions`                      | `list<string>`                  | `['like']`       | —                         | Allowlist of accepted reaction types. Any type outside the list is rejected.                   |
 | `default_reaction`               | `string`                        | `like`           | `LIKES_DEFAULT_REACTION`  | Reaction used when none is given. Must be present in `reactions`.                              |
 | `actor_resolver`                 | `callable\|class-string\|null`  | `null`           | —                         | How the facade resolves the actor when none is supplied. `null` uses `auth()->user()`; a value that does not resolve to a callable throws. |
-| `facade_alias`                   | `string\|null`                  | `Likes`          | `LIKES_FACADE_ALIAS`      | Global class alias for the `Likes` facade. Set `null` to skip aliasing.                        |
+| `facade_alias`                   | `string\|null`                  | `Likes`          | `LIKES_FACADE_ALIAS`      | Global class alias for the `Likes` facade. `null` or `false`/`0`/`off`/`no` (`LIKES_FACADE_ALIAS=false`) skip aliasing; a blank value is not set, so `Likes` is registered. |
 | `weights`                        | `array<string, int\|float>`     | `[]`             | —                         | Per-reaction weights for `orderByLikeScore()`. Empty means the score equals the raw count.     |
 | `default_weight`                 | `int\|float`                    | `1`              | —                         | Weight applied to any reaction not listed in `weights`.                                        |
 | `trending.window`                | `string`                        | `7 days`         | —                         | `strtotime`-able recency window used by `orderByTrending()`.                                   |
@@ -122,10 +122,11 @@ return [
 | `broadcast.channel_prefix`       | `string`                        | `likes`          | —                         | Channel name prefix, e.g. `likes.posts.42`.                                                    |
 | `broadcast.channel_type`         | `string`                        | `private`        | —                         | Channel type: `private`, `public`, or `presence`; anything else throws.                       |
 
-A default applies only when a key is absent (unset or `null`). A value that is present must fit:
-a blank or non-string `table`, `default_reaction`, `trending.window` or `broadcast.channel_prefix`,
+A key that is not set — absent, `null`, or blank like a host's `LIKES_TABLE=` — takes its
+default (a blank driver expression: the portable score). A value that is set must fit:
+a non-string `table`, `default_reaction`, `trending.window` or `broadcast.channel_prefix`,
 a `reactions` list that is empty or holds a non-string, a non-numeric weight, multiplier or
-default weight, a blank driver expression, or a `broadcast.channel_type` typo (it no longer
+default weight, a non-string driver expression, or a `broadcast.channel_type` typo (it no longer
 reads as private) throws `InvalidConfigurationException` instead of falling back or being
 dropped. `php artisan about` renders a broken reaction setting as `INVALID`.
 
