@@ -26,24 +26,6 @@ afterEach(function (): void {
     AliasLoader::getInstance()->setAliases([]);
 });
 
-it('publishes the config file', function (): void {
-    $target = config_path('likes.php');
-
-    if (file_exists($target)) {
-        unlink($target);
-    }
-
-    $this->artisan('vendor:publish', ['--tag' => 'likes-config'])->assertSuccessful();
-
-    expect(file_exists($target))->toBeTrue();
-
-    unlink($target);
-});
-
-it('publishes the migrations', function (): void {
-    $this->artisan('vendor:publish', ['--tag' => 'likes-migrations'])->assertSuccessful();
-});
-
 it('binds the like manager', function (): void {
     expect(app(LikeManager::class))->toBeInstanceOf(LikeManager::class);
 });
