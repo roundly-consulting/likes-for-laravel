@@ -36,8 +36,9 @@ return [
     |
     | The key type used for the polymorphic actor / likeable columns. Use "uuid"
     | or "ulid" when the models that act and get liked use UUID/ULID primary
-    | keys, otherwise leave it as "bigint". Anything unrecognized falls back to
-    | "bigint". Your morph targets must share one key type — set this to match.
+    | keys, otherwise leave it as "bigint". Anything else throws an
+    | InvalidConfigurationException. Your morph targets must share one key type —
+    | set this to match.
     |
     | Supported: "bigint", "uuid", "ulid"
     |

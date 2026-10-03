@@ -14,8 +14,8 @@ return new class extends Migration
         /** @var string $name */
         $name = config('likes.table', 'likes');
 
-        // Silently falls back to bigint for an unrecognized value, so a typo in
-        // the host's config never leaves the package unable to migrate.
+        // Throws for an unrecognized value, so a typo in the host's config fails
+        // the migration instead of quietly building bigint columns.
         $keyType = KeyType::fromConfig('likes.key_type');
 
         Schema::create($name, function (Blueprint $table) use ($name, $keyType): void {
