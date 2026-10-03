@@ -18,10 +18,14 @@ it('resolves a host model that extends the packaged model', function (): void {
     expect(LikeModel::class())->toBe(CustomLike::class);
 });
 
-it('falls back to the packaged model when the configured model is not a like', function (): void {
+it('refuses a foreign model instead of falling back to the packaged one', function (): void {
+    // The toolkit refuses any class that is not the packaged model or a subclass of it.
     config()->set('likes.model', PostTestModel::class);
 
-    expect(LikeModel::class())->toBe(Like::class);
+    expect(fn (): string => LikeModel::class())->toThrow(
+        InvalidConfigurationException::class,
+        'Configuration value [likes.model] must be a class-string of ['.Like::class.'], ['.PostTestModel::class.'] given.',
+    );
 });
 
 it('rejects a configured value that is not an eloquent model', function (): void {
