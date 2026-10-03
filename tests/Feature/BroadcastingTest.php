@@ -13,6 +13,7 @@ use RoundlyConsulting\Likes\Events\Unliked;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Tests\Models\ActorTestModel;
 use RoundlyConsulting\Likes\Tests\Models\PostTestModel;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 
 function makeLikedEvent(): Liked
 {
@@ -165,3 +166,12 @@ it('reads an env-string broadcast flag as a boolean', function (string $value, b
     '0' => ['0', false],
     'off' => ['off', false],
 ]);
+
+it('throws on a broadcast flag typo instead of reading it as off (strict config)', function (): void {
+    config()->set('likes.broadcast.enabled', 'disabled');
+
+    expect(fn (): bool => makeLikedEvent()->broadcastWhen())->toThrow(
+        InvalidConfigurationException::class,
+        'Configuration value [likes.broadcast.enabled] must be a boolean (true/false, 1/0, on/off or yes/no), [disabled] given.',
+    );
+});
