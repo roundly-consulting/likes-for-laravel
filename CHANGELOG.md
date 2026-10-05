@@ -6,6 +6,8 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
 
 ## Unreleased
 
+## 1.1.0 - 2026-10-05
+
 ### Added
 
 - `likesReceived()` on `HasLikes` and `likesGiven()` on `GivesLikes`: unambiguous relations for
@@ -19,6 +21,8 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
   `Blog\Post` and `Forum\Post` share a channel, so subscribers of one received the other's
   like events. Update your `Broadcast::channel()` routes and Echo subscriptions.
 - Maintenance: CI also runs the suite on MySQL 8.
+- Maintenance: `composer.json` `homepage` and `support.docs` now point to the documentation site.
+- Documentation: the README banner uses an absolute image URL, so it also renders on Packagist and other sites.
 
 ### Fixed
 
