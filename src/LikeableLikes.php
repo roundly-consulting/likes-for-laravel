@@ -57,6 +57,8 @@ final readonly class LikeableLikes
             ->getQuery()
             ->whereNull('deleted_at')
             ->groupBy('type')
+            // GROUP BY guarantees no order: MySQL returns the groups in index order.
+            ->orderBy('type')
             ->selectRaw('type, count(*) as aggregate')
             ->get()
             ->all();

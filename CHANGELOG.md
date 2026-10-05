@@ -16,6 +16,9 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
   (was 255), which keeps the unique index under InnoDB's 3072-byte key limit; `migrate`
   used to fail with error 1071. Reaction type names are now limited to 64 characters.
   Existing PostgreSQL and SQLite installs need no change.
+- The per-type counts of `reactionSummary()`, `Likes::for($model)->summary()` and the
+  `breakdown` of `toLikeArray()` / `LikeResource` come back ordered by type on every database.
+  MySQL returned them in index order.
 
 ## 1.0.0 - 2026-10-03
 
