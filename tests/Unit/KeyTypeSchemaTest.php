@@ -85,7 +85,7 @@ it('emits a bigint morph schema byte-identical to raw morphs()', function (): vo
         $table->id();
         $table->morphs('actor');
         $table->morphs('likeable');
-        $table->string('type')->default('like');
+        $table->string('type', 64)->default('like');
         $table->timestamps();
         $table->softDeletes();
     });

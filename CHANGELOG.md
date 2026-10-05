@@ -6,6 +6,17 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
 
 ## Unreleased
 
+### Changed
+
+- Maintenance: CI also runs the suite on MySQL 8.
+
+### Fixed
+
+- The likes migration now runs on MySQL and MariaDB. The `type` column is `varchar(64)`
+  (was 255), which keeps the unique index under InnoDB's 3072-byte key limit; `migrate`
+  used to fail with error 1071. Reaction type names are now limited to 64 characters.
+  Existing PostgreSQL and SQLite installs need no change.
+
 ## 1.0.0 - 2026-10-03
 
 Initial public release.

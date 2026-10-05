@@ -22,7 +22,9 @@ return new class extends Migration
             $table->id();
             $table->morphKey('actor', $keyType, nullable: false);
             $table->morphKey('likeable', $keyType, nullable: false);
-            $table->string('type')->default('like');
+            // 64, not 255: the unique index below spans two morph types plus this column, and
+            // at varchar(255) it is over InnoDB's 3072-byte key limit under utf8mb4.
+            $table->string('type', 64)->default('like');
             $table->timestamps();
             $table->softDeletes();
 
