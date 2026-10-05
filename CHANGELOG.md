@@ -38,6 +38,9 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
   They used to read `likes.table` and found no likes (or failed when that table did not exist).
 - `ReactionSummary::$top` picks the most-used type when none of the stored types is configured
   any more (ties alphabetical), instead of whichever group the database returned first.
+- `Like::factory()` builds the model set in `likes.model` (a host subclass fires its own model
+  events), generates `actor_id` / `likeable_id` matching `likes.key_type` (an integer id failed
+  to insert into a uuid column on PostgreSQL), and uses `likes.default_reaction` for `type`.
 
 ## 1.0.0 - 2026-10-03
 

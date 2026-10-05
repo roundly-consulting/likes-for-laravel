@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Tests\Fixtures\SwappedLikeTestCase;
 use RoundlyConsulting\Likes\Tests\Models\ActorTestModel;
 use RoundlyConsulting\Likes\Tests\Models\CustomLike;
@@ -65,3 +66,15 @@ it('reads counts and reactions back through the swapped model', function (): voi
 // to the packaged model — is pinned once in tests/ArchTest.php by
 // `ArchPresets::swappableModelsAreNotFinal()`. It deliberately does NOT live here: that
 // preset asserts the config *default*, which this directory has swapped away.
+
+/**
+ * The factory hard-coded the packaged model, so `CustomLike::factory()->create()` returned a
+ * plain Like and none of the host's model events fired.
+ */
+it('builds the swapped model from the factory', function (): void {
+    CustomLike::resetCreationCount();
+
+    expect(CustomLike::factory()->create())->toBeInstanceOf(CustomLike::class)
+        ->and(Like::factory()->create())->toBeInstanceOf(CustomLike::class)
+        ->and(CustomLike::creationCount())->toBe(2);
+});
