@@ -6,12 +6,15 @@ use Illuminate\Broadcasting\BroadcastEvent;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
 use RoundlyConsulting\Likes\Events\Liked;
 use RoundlyConsulting\Likes\Events\ReactionChanged;
 use RoundlyConsulting\Likes\Events\Unliked;
 use RoundlyConsulting\Likes\Models\Like;
+use RoundlyConsulting\Likes\Support\BroadcastChannel;
 use RoundlyConsulting\Likes\Tests\Models\ActorTestModel;
+use RoundlyConsulting\Likes\Tests\Models\Forum\PostTestModel as ForumPostTestModel;
 use RoundlyConsulting\Likes\Tests\Models\PostTestModel;
 use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 
@@ -62,7 +65,7 @@ it('builds a private channel by default', function (): void {
     $channel = makeLikedEvent()->broadcastOn();
 
     expect($channel)->toBeInstanceOf(PrivateChannel::class)
-        ->and($channel->name)->toContain('likes.post_test_models.');
+        ->and($channel->name)->toContain('likes.RoundlyConsulting.Likes.Tests.Models.PostTestModel.');
 });
 
 it('honours the configured prefix and public channel type', function (): void {
@@ -72,7 +75,7 @@ it('honours the configured prefix and public channel type', function (): void {
     $channel = makeLikedEvent()->broadcastOn();
 
     expect($channel)->toBeInstanceOf(Channel::class)
-        ->and($channel->name)->toContain('reactions.post_test_models.');
+        ->and($channel->name)->toContain('reactions.RoundlyConsulting.Likes.Tests.Models.PostTestModel.');
 });
 
 it('builds a presence channel when configured', function (): void {
@@ -174,4 +177,29 @@ it('throws on a broadcast flag typo instead of reading it as off (strict config)
         InvalidConfigurationException::class,
         'Configuration value [likes.broadcast.enabled] must be a boolean (true/false, 1/0, on/off or yes/no), [disabled] given.',
     );
+});
+
+/**
+ * The channel segment used to be the snake-plural class basename, so Blog\Post #5 and
+ * Forum\Post #5 both broadcast on `likes.posts.5` and a subscriber authorised for one
+ * received the other's events. It is now the full morph class with dots, as Laravel's own
+ * model broadcasting does, or the morph-map alias as-is.
+ */
+it('gives same-basename models from different namespaces their own channel', function (): void {
+    $blog = new PostTestModel(['id' => 5]);
+    $forum = new ForumPostTestModel(['id' => 5]);
+
+    expect(BroadcastChannel::for($blog)->name)->not->toBe(BroadcastChannel::for($forum)->name)
+        ->and(BroadcastChannel::for($blog)->name)->toBe('private-likes.RoundlyConsulting.Likes.Tests.Models.PostTestModel.5')
+        ->and(BroadcastChannel::for($forum)->name)->toBe('private-likes.RoundlyConsulting.Likes.Tests.Models.Forum.PostTestModel.5');
+});
+
+it('uses the morph map alias as the channel segment', function (): void {
+    Relation::morphMap(['blog-post' => PostTestModel::class]);
+
+    try {
+        expect(BroadcastChannel::for(new PostTestModel(['id' => 5]))->name)->toBe('private-likes.blog-post.5');
+    } finally {
+        Relation::morphMap([], false);
+    }
 });

@@ -167,7 +167,8 @@ return [
     | Opt-in broadcasting of the Liked, Unliked and ReactionChanged events.
     | Disabled by default, so existing installs see no broadcast traffic. When
     | enabled, events broadcast on "{channel_prefix}.{morph}.{id}" using the
-    | configured channel type (private|public|presence).
+    | configured channel type (private|public|presence). {morph} is the morph
+    | class with dots for backslashes ("App.Models.Post") or its morph-map alias.
     |
     | @var array{enabled: bool, channel_prefix: string, channel_type: string}
     */

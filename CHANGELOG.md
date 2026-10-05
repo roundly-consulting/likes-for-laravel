@@ -13,6 +13,11 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
 
 ### Changed
 
+- **Broadcast channel names changed.** The segment after the prefix is now the likeable's full
+  morph class with dots for backslashes (as Laravel's model broadcasting does), or its morph-map
+  alias as-is: `likes.App.Models.Post.42` instead of `likes.posts.42`. The class basename let
+  `Blog\Post` and `Forum\Post` share a channel, so subscribers of one received the other's
+  like events. Update your `Broadcast::channel()` routes and Echo subscriptions.
 - Maintenance: CI also runs the suite on MySQL 8.
 
 ### Fixed
