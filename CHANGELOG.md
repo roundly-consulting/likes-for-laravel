@@ -36,6 +36,8 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
 - With `likes.model` set to a subclass that names its own `$table`, `withLikedState()`,
   `orderByLikeScore()`, `orderByTrending()`, `likesOf()` and `likedItems()` read that table.
   They used to read `likes.table` and found no likes (or failed when that table did not exist).
+- `ReactionSummary::$top` picks the most-used type when none of the stored types is configured
+  any more (ties alphabetical), instead of whichever group the database returned first.
 
 ## 1.0.0 - 2026-10-03
 

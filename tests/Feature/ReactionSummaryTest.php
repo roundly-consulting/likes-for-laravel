@@ -80,3 +80,33 @@ it('excludes soft-deleted likes', function (): void {
     expect($summary->counts)->toBe(['like' => 1])
         ->and($summary->total)->toBe(1);
 });
+
+/**
+ * With no configured type present, `top` used to be whichever group the database returned
+ * first, ignoring the counts. It is the most-used present type; a tie goes to the
+ * alphabetically first, the order ReactionType::orderByPreference() gives unconfigured types.
+ */
+it('falls back to the most-used present type when none are configured', function (): void {
+    config()->set('likes.reactions', ['like', 'haha', 'wow']);
+
+    $this->a->like($this->post, 'haha');
+
+    foreach (range(1, 5) as $i) {
+        ActorTestModel::query()->create()->like($this->post, 'wow');
+    }
+
+    config()->set('likes.reactions', ['like']);
+
+    expect($this->post->reactionSummary()->top)->toBe('wow');
+});
+
+it('breaks a tie between unconfigured types alphabetically', function (): void {
+    config()->set('likes.reactions', ['like', 'haha', 'wow']);
+
+    $this->a->like($this->post, 'wow');
+    $this->b->like($this->post, 'haha');
+
+    config()->set('likes.reactions', ['like']);
+
+    expect($this->post->reactionSummary()->top)->toBe('haha');
+});

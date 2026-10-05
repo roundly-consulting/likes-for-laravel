@@ -113,9 +113,13 @@ final readonly class LikeableLikes
             }
         }
 
-        // Fall back to whatever is present if no configured type matched.
+        // No configured type is present: the most-used present type, a tie going to the
+        // alphabetically first — the order orderByPreference() gives unconfigured types.
         if ($best <= 0) {
-            $top = array_key_first($counts);
+            ksort($counts, SORT_STRING);
+            arsort($counts);
+
+            return (string) array_key_first($counts);
         }
 
         return $top;
