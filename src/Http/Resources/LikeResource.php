@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Likes\Http\Resources;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use RoundlyConsulting\Likes\Contracts\Likeable;
@@ -21,12 +20,11 @@ final class LikeResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $viewer = $request->user();
-        $viewer = $viewer instanceof Model ? $viewer : null;
-
         /** @var Likeable $likeable */
         $likeable = $this->resource;
 
-        return $likeable->toLikeArray($viewer);
+        // No explicit viewer: the viewer resolves like every other read (`likes.actor_resolver`,
+        // else the authenticated user). Passing `$request->user()` skipped a configured resolver.
+        return $likeable->toLikeArray();
     }
 }

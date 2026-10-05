@@ -30,6 +30,9 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
   no longer counts the likes it gave in `withLikesCount()`, `orderByLikes()`,
   `orderByLikesDesc()`, `whereLikedBy()` and `whereNotLikedBy()`; the scopes now always use the
   received side.
+- `LikeResource` resolves its viewer through `likes.actor_resolver` like every other read. It
+  used to pass `$request->user()`, so with a resolver acting as another model (a team) the
+  resource reported `liked: false` for that model's own like.
 
 ## 1.0.0 - 2026-10-03
 
