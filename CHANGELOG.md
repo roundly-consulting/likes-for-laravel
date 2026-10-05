@@ -19,6 +19,8 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
 - The per-type counts of `reactionSummary()`, `Likes::for($model)->summary()` and the
   `breakdown` of `toLikeArray()` / `LikeResource` come back ordered by type on every database.
   MySQL returned them in index order.
+- `@liked($post)` renders the `@else` branch for a guest (and for a `null` actor) instead of
+  throwing `NoAuthenticatedActorException`, which broke the whole view for logged-out visitors.
 
 ## 1.0.0 - 2026-10-03
 

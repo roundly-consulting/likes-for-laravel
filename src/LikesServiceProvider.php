@@ -7,6 +7,7 @@ namespace RoundlyConsulting\Likes;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Likes\Facades\Likes;
+use RoundlyConsulting\Likes\Support\ActorResolver;
 use RoundlyConsulting\Likes\Support\ReactionType;
 use RoundlyConsulting\PackageToolkit\Concerns\RegistersBladeDirectives;
 use RoundlyConsulting\PackageToolkit\Concerns\RegistersBlueprintMacros;
@@ -50,11 +51,14 @@ final class LikesServiceProvider extends PackageServiceProvider
         $this->registerBlueprintMacros();
 
         $this->registerBladeIf('liked', function (Model $likeable, ?Model $actor = null, ?string $type = null): bool {
-            $type ??= ReactionType::default();
+            // A guest has liked nothing: render the @else branch instead of throwing.
+            $actor = ActorResolver::resolve($actor);
 
-            return $actor instanceof Model
-                ? Likes::actor($actor)->as($type)->has($likeable)
-                : Likes::as($type)->has($likeable);
+            if (! $actor instanceof Model) {
+                return false;
+            }
+
+            return Likes::actor($actor)->as($type ?? ReactionType::default())->has($likeable);
         });
     }
 
