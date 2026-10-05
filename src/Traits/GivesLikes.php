@@ -24,9 +24,22 @@ use RoundlyConsulting\Likes\Support\ReactionType;
 trait GivesLikes
 {
     /**
+     * Likes given by this actor. A model that also uses HasLikes declares `likes()` twice and
+     * resolves it with `insteadof`; use likesGiven() there, which only this trait defines.
+     *
      * @return MorphMany<Like, $this>
      */
     public function likes(): MorphMany
+    {
+        return $this->likesGiven();
+    }
+
+    /**
+     * Likes given by this actor.
+     *
+     * @return MorphMany<Like, $this>
+     */
+    public function likesGiven(): MorphMany
     {
         $model = LikeModel::class();
 

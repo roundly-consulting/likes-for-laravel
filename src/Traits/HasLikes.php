@@ -28,9 +28,23 @@ use RoundlyConsulting\Likes\Support\TrendingScore;
 trait HasLikes
 {
     /**
+     * All likes on this model. A model that also uses GivesLikes declares `likes()` twice and
+     * resolves it with `insteadof`; use likesReceived() there, which only this trait defines.
+     *
      * @return MorphMany<Like, $this>
      */
     public function likes(): MorphMany
+    {
+        return $this->likesReceived();
+    }
+
+    /**
+     * All likes on this model. The scopes below go through this relation, never `likes()`,
+     * so they count received likes whichever trait's `likes()` a dual-role model keeps.
+     *
+     * @return MorphMany<Like, $this>
+     */
+    public function likesReceived(): MorphMany
     {
         $model = LikeModel::class();
 
@@ -70,7 +84,7 @@ trait HasLikes
     public function scopeWithLikesCount(Builder $query, ?string $type = null): Builder
     {
         return $query->withCount([
-            'likes as '.ReactionType::countAttribute($type) => function (Builder $likes) use ($type): void {
+            'likesReceived as '.ReactionType::countAttribute($type) => function (Builder $likes) use ($type): void {
                 $this->filterByType($likes, $type);
             },
         ]);
@@ -106,7 +120,7 @@ trait HasLikes
      */
     public function scopeWhereLikedBy(Builder $query, Model $actor, ?string $type = null): Builder
     {
-        return $query->whereHas('likes', function (Builder $likes) use ($actor, $type): void {
+        return $query->whereHas('likesReceived', function (Builder $likes) use ($actor, $type): void {
             $likes->whereMorphedTo('actor', $actor);
             $this->filterByType($likes, $type);
         });
@@ -120,7 +134,7 @@ trait HasLikes
      */
     public function scopeWhereNotLikedBy(Builder $query, Model $actor, ?string $type = null): Builder
     {
-        return $query->whereDoesntHave('likes', function (Builder $likes) use ($actor, $type): void {
+        return $query->whereDoesntHave('likesReceived', function (Builder $likes) use ($actor, $type): void {
             $likes->whereMorphedTo('actor', $actor);
             $this->filterByType($likes, $type);
         });

@@ -6,6 +6,11 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
 
 ## Unreleased
 
+### Added
+
+- `likesReceived()` on `HasLikes` and `likesGiven()` on `GivesLikes`: unambiguous relations for
+  a model that both gives and receives likes. `likes()` stays on both traits.
+
 ### Changed
 
 - Maintenance: CI also runs the suite on MySQL 8.
@@ -21,6 +26,10 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
   MySQL returned them in index order.
 - `@liked($post)` renders the `@else` branch for a guest (and for a `null` actor) instead of
   throwing `NoAuthenticatedActorException`, which broke the whole view for logged-out visitors.
+- A model using both `HasLikes` and `GivesLikes` (with `GivesLikes::likes insteadof HasLikes`)
+  no longer counts the likes it gave in `withLikesCount()`, `orderByLikes()`,
+  `orderByLikesDesc()`, `whereLikedBy()` and `whereNotLikedBy()`; the scopes now always use the
+  received side.
 
 ## 1.0.0 - 2026-10-03
 
