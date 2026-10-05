@@ -46,6 +46,8 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
 - `Like::factory()` builds the model set in `likes.model` (a host subclass fires its own model
   events), generates `actor_id` / `likeable_id` matching `likes.key_type` (an integer id failed
   to insert into a uuid column on PostgreSQL), and uses `likes.default_reaction` for `type`.
+- `likedItems($class, 'like')` no longer throws "Illegal operator and value combination"; the
+  default `like` reaction was read as the SQL `LIKE` operator.
 
 ## 1.0.0 - 2026-10-03
 

@@ -106,3 +106,17 @@ it('still filters a multi-reaction item by one type', function (): void {
     expect($items)->toHaveCount(1)
         ->and($items->first()?->getRelation('pivot')->getAttribute('type'))->toBe('love');
 });
+
+/**
+ * `wherePivot()` always hands where() four arguments, so a two-argument call read the type as
+ * the operator — and `like` IS an SQL operator. With the package's default reaction the
+ * documented typed form threw "Illegal operator and value combination".
+ */
+it('filters liked items by the default like reaction', function (): void {
+    $this->actor->like($this->postA, 'like');
+    $this->actor->like($this->postB, 'love');
+
+    $ids = $this->actor->likedItems(PostTestModel::class, 'like')->pluck('posts.id')->all();
+
+    expect($ids)->toBe([$this->postA->getKey()]);
+});

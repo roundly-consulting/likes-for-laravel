@@ -166,8 +166,9 @@ trait GivesLikes
         }
 
         // One row per actor + likeable + type is a unique index, so a typed relation is
-        // distinct already.
-        return $this->reactionsOf($likeableClass)->wherePivot('type', ReactionType::resolve($type));
+        // distinct already. The explicit '=' matters: wherePivot() always passes where() an
+        // operator, and a bare 'like' would be read as the SQL LIKE operator.
+        return $this->reactionsOf($likeableClass)->wherePivot('type', '=', ReactionType::resolve($type));
     }
 
     /**
