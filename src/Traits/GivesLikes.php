@@ -12,7 +12,6 @@ use RoundlyConsulting\Likes\LikeManager;
 use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\PendingLike;
 use RoundlyConsulting\Likes\Support\LikeModel;
-use RoundlyConsulting\Likes\Support\LikesConfig;
 use RoundlyConsulting\Likes\Support\ReactionType;
 
 /**
@@ -184,7 +183,7 @@ trait GivesLikes
         $relation = $this->morphedByMany(
             $likeableClass,
             'likeable',
-            LikesConfig::table(),
+            LikeModel::table(),
             'actor_id',
             'likeable_id',
         )

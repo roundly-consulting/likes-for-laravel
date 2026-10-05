@@ -23,4 +23,16 @@ final class LikeModel
     {
         return ModelResolver::for('likes.model', Like::class);
     }
+
+    /**
+     * The table the configured model reads and writes: `likes.table`, unless a subclass names
+     * its own `$table`. Raw-table queries use this, never the config key, so they always see
+     * the rows the model wrote.
+     */
+    public static function table(): string
+    {
+        $model = self::class();
+
+        return (new $model)->getTable();
+    }
 }

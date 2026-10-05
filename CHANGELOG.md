@@ -33,6 +33,9 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
 - `LikeResource` resolves its viewer through `likes.actor_resolver` like every other read. It
   used to pass `$request->user()`, so with a resolver acting as another model (a team) the
   resource reported `liked: false` for that model's own like.
+- With `likes.model` set to a subclass that names its own `$table`, `withLikedState()`,
+  `orderByLikeScore()`, `orderByTrending()`, `likesOf()` and `likedItems()` read that table.
+  They used to read `likes.table` and found no likes (or failed when that table did not exist).
 
 ## 1.0.0 - 2026-10-03
 

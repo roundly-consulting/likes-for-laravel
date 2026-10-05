@@ -15,7 +15,6 @@ use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Support\ActorResolver;
 use RoundlyConsulting\Likes\Support\HostSql;
 use RoundlyConsulting\Likes\Support\LikeModel;
-use RoundlyConsulting\Likes\Support\LikesConfig;
 use RoundlyConsulting\Likes\Support\ReactionType;
 use RoundlyConsulting\Likes\Support\TrendingScore;
 
@@ -313,7 +312,7 @@ trait HasLikes
 
     private function likesTable(): string
     {
-        return LikesConfig::table();
+        return LikeModel::table();
     }
 
     /**

@@ -6,6 +6,7 @@ use RoundlyConsulting\Likes\Testing\LikeExpectations;
 use RoundlyConsulting\Likes\Tests\Fixtures\PublishSandboxTestCase;
 use RoundlyConsulting\Likes\Tests\Fixtures\RenamedTableTestCase;
 use RoundlyConsulting\Likes\Tests\Fixtures\SwappedLikeTestCase;
+use RoundlyConsulting\Likes\Tests\Fixtures\TableOverrideLikeTestCase;
 use RoundlyConsulting\Likes\Tests\TestCase;
 
 // Explicit paths, not `->in(__DIR__)`: the ModelSwap, TableSwap and Publish directories below
@@ -18,6 +19,9 @@ uses(TestCase::class)->in('ArchTest.php', 'Feature', 'Unit');
 // providers boot, so they run on their own base case in their own directory — Pest binds a
 // test case per directory, not per file.
 uses(SwappedLikeTestCase::class)->in('ModelSwap');
+
+// A swapped model that names its own `$table`: every raw-table read must follow the model.
+uses(TableOverrideLikeTestCase::class)->in('ModelTable');
 
 // Likewise `likes.table`: the migration reads it inside up(), so the rename has to land
 // before anything boots to produce a genuinely differently-named schema.

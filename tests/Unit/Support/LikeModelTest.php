@@ -6,6 +6,7 @@ use RoundlyConsulting\Likes\Models\Like;
 use RoundlyConsulting\Likes\Support\LikeModel;
 use RoundlyConsulting\Likes\Tests\Models\CustomLike;
 use RoundlyConsulting\Likes\Tests\Models\PostTestModel;
+use RoundlyConsulting\Likes\Tests\Models\TableOverrideLike;
 use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 
 it('resolves the packaged model by default', function (): void {
@@ -33,3 +34,14 @@ it('rejects a configured value that is not an eloquent model', function (): void
 
     LikeModel::class();
 })->throws(InvalidConfigurationException::class);
+
+it('resolves the table the configured model uses', function (): void {
+    expect(LikeModel::table())->toBe('likes');
+
+    config()->set('likes.table', 'renamed_likes');
+    expect(LikeModel::table())->toBe('renamed_likes');
+
+    // A subclass's own $table wins over the config key, exactly as Like::getTable() does.
+    config()->set('likes.model', TableOverrideLike::class);
+    expect(LikeModel::table())->toBe('reactions');
+});
