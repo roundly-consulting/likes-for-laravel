@@ -57,6 +57,9 @@ ArchPresets::noLocalCryptoPrimitives('RoundlyConsulting\Likes');
  */
 ArchPresets::modelsResolveThroughSeam(__DIR__.'/../src', 'Support');
 
+// A host swap reaches `Like::factory()` too: the factory builds the configured model.
+ArchPresets::factoriesResolveThroughSeam(__DIR__.'/../database/factories', __DIR__.'/../src', 'Support');
+
 /**
  * The morph-key seam, guarded. Likes was the proven vector's other half: its actor and
  * likeable columns migrated off raw `$table->morphs()` onto `morphKey($name, KeyType::…)`
