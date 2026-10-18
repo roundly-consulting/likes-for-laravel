@@ -6,6 +6,14 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
 
 ## Unreleased
 
+### Changed
+
+- The broadcast payload's `actor_type` and `likeable_type` (`Liked`, `Unliked`, `ReactionChanged`)
+  are now the model's class basename (`User`, `Post`), never its PHP class name: without a morph
+  map they carried `App\Models\User` to every subscriber of the likeable's channel. Under a morph
+  map they are the basename too, no longer the alias. Listeners that matched on the old value need
+  updating; the channel name is unchanged.
+
 ## 1.1.1 - 2026-10-11
 
 ### Changed

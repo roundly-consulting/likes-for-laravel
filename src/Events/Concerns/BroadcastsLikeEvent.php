@@ -18,6 +18,9 @@ use RoundlyConsulting\PackageToolkit\Support\Config;
  * The payload is ids and the reaction only. Without an explicit broadcastWith() Laravel
  * serialises every public property, which put the actor's whole model — email, phone,
  * anything not hidden — in front of every subscriber of the likeable's channel.
+ *
+ * The `*_type` keys are the class basename, never getMorphClass(): without a morph map that
+ * is the PHP class name (`App\Models\User`), and a client never receives a class name.
  */
 trait BroadcastsLikeEvent
 {
@@ -43,7 +46,8 @@ trait BroadcastsLikeEvent
     abstract protected function broadcastable(): Model;
 
     /**
-     * The ids every like event broadcasts: the like row, the actor and the likeable.
+     * The ids every like event broadcasts: the like row, the actor and the likeable, each
+     * model typed by its class basename.
      *
      * @return array<string, mixed>
      */
@@ -51,9 +55,9 @@ trait BroadcastsLikeEvent
     {
         return [
             'like_id' => $like->getKey(),
-            'actor_type' => $actor->getMorphClass(),
+            'actor_type' => class_basename($actor),
             'actor_id' => $actor->getKey(),
-            'likeable_type' => $likeable->getMorphClass(),
+            'likeable_type' => class_basename($likeable),
             'likeable_id' => $likeable->getKey(),
         ];
     }

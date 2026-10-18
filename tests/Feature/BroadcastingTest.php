@@ -136,9 +136,9 @@ it('broadcasts only ids and the reaction type, never the actor model', function 
 
     expect($payload)->toBe([
         'like_id' => $event->like->getKey(),
-        'actor_type' => $event->actor->getMorphClass(),
+        'actor_type' => 'ActorTestModel',
         'actor_id' => $event->actor->getKey(),
-        'likeable_type' => $event->likeable->getMorphClass(),
+        'likeable_type' => 'PostTestModel',
         'likeable_id' => $event->likeable->getKey(),
         'type' => 'like',
         'socket' => null,
@@ -199,6 +199,54 @@ it('uses the morph map alias as the channel segment', function (): void {
 
     try {
         expect(BroadcastChannel::for(new PostTestModel(['id' => 5]))->name)->toBe('private-likes.blog-post.5');
+    } finally {
+        Relation::morphMap([], false);
+    }
+});
+
+/**
+ * `actor_type` / `likeable_type` used to be getMorphClass() — on a host without a morph map that
+ * is the PHP class name (`App\Models\User`), sent to every subscriber of the likeable's channel.
+ * A client never receives a class name: both are the class basename.
+ */
+it('broadcasts class basenames, never a class name, without a morph map', function (string $event): void {
+    Relation::morphMap([], false);
+
+    $liked = makeLikedEvent();
+    $payload = match ($event) {
+        'liked' => $liked->broadcastWith(),
+        'unliked' => (new Unliked($liked->actor, $liked->likeable, 'like', $liked->like))->broadcastWith(),
+        'reaction changed' => (new ReactionChanged($liked->actor, $liked->likeable, 'like', 'love', $liked->like))->broadcastWith(),
+    };
+
+    expect($payload)->toMatchArray([
+        'actor_type' => 'ActorTestModel',
+        'actor_id' => $liked->actor->getKey(),
+        'likeable_type' => 'PostTestModel',
+        'likeable_id' => $liked->likeable->getKey(),
+    ])
+        ->and((string) json_encode($payload))->not->toContain('\\')
+        ->and((string) json_encode(broadcastPayload($liked)))->not->toContain('\\');
+})->with(['liked', 'unliked', 'reaction changed']);
+
+it('broadcasts the basename for a namespaced likeable that shares its short name', function (): void {
+    $liked = makeLikedEvent();
+    $forumPost = ForumPostTestModel::query()->create();
+
+    $payload = (new Liked($liked->actor, $forumPost, 'like', $liked->like))->broadcastWith();
+
+    expect($payload['likeable_type'])->toBe('PostTestModel')
+        ->and((string) json_encode($payload))->not->toContain('\\');
+});
+
+it('broadcasts the class basename, not the alias, under a morph map', function (): void {
+    Relation::morphMap(['blog-post' => PostTestModel::class, 'member' => ActorTestModel::class]);
+
+    try {
+        $payload = makeLikedEvent()->broadcastWith();
+
+        expect($payload['actor_type'])->toBe('ActorTestModel')
+            ->and($payload['likeable_type'])->toBe('PostTestModel');
     } finally {
         Relation::morphMap([], false);
     }
