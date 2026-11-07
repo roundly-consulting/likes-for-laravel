@@ -25,7 +25,7 @@ scopes, single-query feed hydration and reaction breakdowns come on top.
 
 ## Installation
 
-Requires PHP 8.4 and Laravel 12 or 13.
+Requires PHP 8.4 and Laravel 13.
 
 ```bash
 composer require roundly-consulting/likes-for-laravel
