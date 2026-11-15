@@ -79,17 +79,6 @@ $posts = Post::query()
     ->paginate();
 ```
 
-### ULID or UUID keys
-
-Set both key types before you run the migration: `LIKES_KEY_TYPE` for the actor and likeable
-models' keys, `LIKES_PRIMARY_KEY_TYPE` for the likes table's own `id`. Each is `bigint` (the
-default), `ulid` or `uuid`:
-
-```dotenv
-LIKES_KEY_TYPE=ulid
-LIKES_PRIMARY_KEY_TYPE=ulid
-```
-
 <!-- roundly-docs:start -->
 ## Documentation
 
