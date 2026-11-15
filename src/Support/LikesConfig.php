@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Likes\Support;
 
+use RoundlyConsulting\PackageToolkit\Enums\KeyType;
 use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 use RoundlyConsulting\PackageToolkit\Support\Config;
 
@@ -20,6 +21,12 @@ use RoundlyConsulting\PackageToolkit\Support\Config;
  */
 final class LikesConfig
 {
+    /** The likes table's own key type (`likes.primary_key_type`). */
+    public static function primaryKeyType(): KeyType
+    {
+        return KeyType::fromConfig('likes.primary_key_type');
+    }
+
     public static function table(): string
     {
         return self::string('likes.table', 'likes');

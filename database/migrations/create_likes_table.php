@@ -17,9 +17,15 @@ return new class extends Migration
         // Throws for an unrecognized value, so a typo in the host's config fails
         // the migration instead of quietly building bigint columns.
         $keyType = KeyType::fromConfig('likes.key_type');
+        // The table's own id: a second, independent axis (`likes.primary_key_type`).
+        $primaryKeyType = KeyType::fromConfig('likes.primary_key_type');
 
-        Schema::create($name, function (Blueprint $table) use ($name, $keyType): void {
-            $table->id();
+        Schema::create($name, function (Blueprint $table) use ($name, $keyType, $primaryKeyType): void {
+            match ($primaryKeyType) {
+                KeyType::BigInt => $table->id(),
+                KeyType::Ulid => $table->ulid('id')->primary(),
+                KeyType::Uuid => $table->uuid('id')->primary(),
+            };
             $table->morphKey('actor', $keyType, nullable: false);
             $table->morphKey('likeable', $keyType, nullable: false);
             // 64, not 255: the unique index below spans two morph types plus this column, and

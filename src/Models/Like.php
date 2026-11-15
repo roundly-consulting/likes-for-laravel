@@ -9,14 +9,15 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use RoundlyConsulting\Likes\Concerns\HasConfigurableKey;
 use RoundlyConsulting\Likes\Database\Factories\LikeFactory;
 use RoundlyConsulting\Likes\Support\LikesConfig;
 
 /**
- * @property int $id
- * @property int $actor_id
+ * @property int|string $id
+ * @property int|string $actor_id
  * @property string $actor_type
- * @property int $likeable_id
+ * @property int|string $likeable_id
  * @property string $likeable_type
  * @property string $type
  * @property CarbonInterface|null $created_at
@@ -25,6 +26,8 @@ use RoundlyConsulting\Likes\Support\LikesConfig;
  */
 class Like extends Model
 {
+    use HasConfigurableKey;
+
     /** @use HasFactory<LikeFactory> */
     use HasFactory;
 

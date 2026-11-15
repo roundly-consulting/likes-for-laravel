@@ -49,7 +49,15 @@ jobs:
         run: vendor/bin/pest --coverage --min=90
   test-pgsql:
     runs-on: ubuntu-latest
-    name: P8.4 - pgsql real-engine
+    name: P8.4 - pgsql real-engine - key ${{ matrix.key_type }} / id ${{ matrix.primary_key_type }}
+
+    # Every combination of the morph key type and the table's own id, on the engine that tells
+    # bigint, uuid and char(26) apart (and refuses min() over a uuid).
+    strategy:
+      fail-fast: false
+      matrix:
+        key_type: [bigint, ulid, uuid]
+        primary_key_type: [bigint, ulid, uuid]
 
     steps:
       # Started first so the engine boots while PHP and the dependencies install. The data
@@ -92,6 +100,8 @@ jobs:
           # job would run every test on sqlite and call itself a postgres leg. The
           # driver-truth assertion in the suite fails loudly if that ever happens.
           TESTING_DB_DRIVER: pgsql
+          LIKES_KEY_TYPE: ${{ matrix.key_type }}
+          LIKES_PRIMARY_KEY_TYPE: ${{ matrix.primary_key_type }}
           TESTING_DB_HOST: 127.0.0.1
           TESTING_DB_PORT: 5432
           TESTING_DB_DATABASE: testing

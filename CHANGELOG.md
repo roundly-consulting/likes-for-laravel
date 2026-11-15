@@ -6,6 +6,26 @@ All notable changes to `likes-for-laravel` are documented in this file. The form
 
 ## Unreleased
 
+## 2.1.0 - 2026-11-15
+
+### Added
+
+- `likes.primary_key_type` (`LIKES_PRIMARY_KEY_TYPE`): the likes table's own `id` as `bigint` (the default,
+  unchanged), `ulid` or `uuid`. The migration builds the column, and the `Like` model generates ULID or UUIDv7 ids
+  itself when set. It is independent of `likes.key_type`, which types the actor and likeable morph columns, so a
+  host with ULID keys everywhere sets both to `ulid`. An unknown value stops the migration with
+  `InvalidConfigurationException`.
+
+### Fixed
+
+- `likesOf()` / `likedItems()` failed on Postgres with a uuid `id` (no `min()` over uuid). They now pick each
+  item's first active reaction by ordering, which works for every key type and engine.
+
+### Changed
+
+- The suite runs under every combination of `key_type` and `primary_key_type`. CI covers all nine on Postgres.
+
+
 ## 2.0.0 - 2026-11-07
 
 ### Changed

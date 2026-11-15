@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace RoundlyConsulting\Likes\Tests\Models\Forum;
 
 use Illuminate\Database\Eloquent\Model;
+use RoundlyConsulting\Likes\Tests\Models\Concerns\FollowsLikesKeyType;
 use RoundlyConsulting\Likes\Traits\HasLikes;
 
 /**
@@ -13,6 +14,7 @@ use RoundlyConsulting\Likes\Traits\HasLikes;
  */
 final class PostTestModel extends Model
 {
+    use FollowsLikesKeyType;
     use HasLikes;
 
     public $table = 'posts';

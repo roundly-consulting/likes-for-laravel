@@ -8,12 +8,14 @@ use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\Authorizable;
+use RoundlyConsulting\Likes\Tests\Models\Concerns\FollowsLikesKeyType;
 use RoundlyConsulting\Likes\Traits\GivesLikes;
 
 final class ActorTestModel extends Model implements Authenticatable
 {
     use AuthenticatableTrait;
     use Authorizable;
+    use FollowsLikesKeyType;
     use GivesLikes;
 
     public $table = 'actors';

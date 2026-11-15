@@ -48,6 +48,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Primary Key Type
+    |--------------------------------------------------------------------------
+    |
+    | The key type of the likes table's own `id`: "bigint" (auto-increment, the
+    | default), "ulid" or "uuid" (UUIDv7). The Like model generates ULID/UUID ids
+    | itself when set. Independent of "key_type" above, which types the actor /
+    | likeable morph columns. Set it before running the migration. Anything else
+    | throws an InvalidConfigurationException.
+    |
+    | Supported: "bigint", "uuid", "ulid"
+    |
+    */
+
+    'primary_key_type' => env('LIKES_PRIMARY_KEY_TYPE', 'bigint'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Reaction types
     |--------------------------------------------------------------------------
     |

@@ -77,6 +77,7 @@ it('creates the polymorphic actor and likeable columns', function (): void {
  */
 it('emits a bigint morph schema byte-identical to raw morphs()', function (): void {
     config()->set('likes.key_type', 'bigint');
+    config()->set('likes.primary_key_type', 'bigint');
     config()->set('likes.table', 'likes');
     runLikesMigration();
 
@@ -140,4 +141,40 @@ it('refuses to migrate on an unrecognized key type instead of falling back to bi
     })->toThrow(InvalidConfigurationException::class, 'Configuration value [likes.key_type] must be one of [bigint, uuid, ulid] (case-insensitive), [nonsense] given.');
 
     Schema::dropIfExists('fallback_likes');
+});
+
+/**
+ * The table's own id, a second axis: bigint (auto-increment, unchanged), ulid or uuid, each
+ * combined with any morph key type.
+ */
+it('renders the configured primary key type as the id column', function (string $primaryKeyType, string $expected): void {
+    config()->set('likes.primary_key_type', $primaryKeyType);
+    config()->set('likes.table', 'pk_likes');
+
+    Schema::dropIfExists('likes');
+    Schema::dropIfExists('pk_likes');
+    $migration = require __DIR__.'/../../database/migrations/create_likes_table.php';
+    $migration->up();
+
+    expect(likesPgColumn('pk_likes', 'id'))->toBe(['type' => $expected, 'nullable' => 'NO']);
+
+    Schema::dropIfExists('pk_likes');
+})->with([
+    'bigint' => ['bigint', 'bigint'],
+    'uuid' => ['uuid', 'uuid'],
+    'ulid' => ['ulid', 'character(26)'],
+])->skip($pgsqlOnly, 'needs the postgres catalog to tell the key types apart');
+
+it('refuses to migrate on an unrecognized primary key type', function (): void {
+    config()->set('likes.primary_key_type', 'serial');
+    config()->set('likes.table', 'pk_fallback_likes');
+
+    Schema::dropIfExists('pk_fallback_likes');
+
+    expect(function (): void {
+        $migration = require __DIR__.'/../../database/migrations/create_likes_table.php';
+        $migration->up();
+    })->toThrow(InvalidConfigurationException::class, 'Configuration value [likes.primary_key_type] must be one of [bigint, uuid, ulid] (case-insensitive), [serial] given.');
+
+    expect(Schema::hasTable('pk_fallback_likes'))->toBeFalse();
 });

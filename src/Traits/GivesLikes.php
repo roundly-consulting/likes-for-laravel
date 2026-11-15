@@ -138,14 +138,18 @@ trait GivesLikes
         // The relation joins the likes table, so an item with several active reactions
         // would come back once per reaction (and paginate()->total() would count every
         // copy). Join only the actor's first active reaction on each item instead.
+        // The first by ordering, not `min(id)`: Postgres has no min() over a uuid id
+        // (`likes.primary_key_type`), and every key type orders oldest first.
         $relation->getBaseQuery()->where($table.'.id', '=', function (QueryBuilder $first) use ($table): void {
-            $first->selectRaw('min(id)')
+            $first->select('likes_first.id')
                 ->from($table.' as likes_first')
                 ->whereColumn('likes_first.actor_type', $table.'.actor_type')
                 ->whereColumn('likes_first.actor_id', $table.'.actor_id')
                 ->whereColumn('likes_first.likeable_type', $table.'.likeable_type')
                 ->whereColumn('likes_first.likeable_id', $table.'.likeable_id')
-                ->whereNull('likes_first.deleted_at');
+                ->whereNull('likes_first.deleted_at')
+                ->orderBy('likes_first.id')
+                ->limit(1);
         });
 
         return $relation;
